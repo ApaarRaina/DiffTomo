@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class REDCNN(nn.Module):
-    def __init__(self, load_pretrained=False, device='cpu'):
+    def __init__(self, load_pretrained=False, device="cpu"):
         super().__init__()
 
         self.conv1 = nn.Conv2d(1, 96, kernel_size=5, stride=1, padding=0)
@@ -19,13 +19,12 @@ class REDCNN(nn.Module):
         self.deconv1 = nn.ConvTranspose2d(96, 1, kernel_size=5, stride=1, padding=0)
 
         self.relu = nn.ReLU(inplace=False)
-        
+
         if load_pretrained:
             self.path = "weights/redcnn.pth"
             self.load_pretrained_weights(self.path, device=device)
 
     def forward(self, x):
-
         x1 = self.relu(self.conv1(x))
         x2 = self.relu(self.conv2(x1))
         x3 = self.relu(self.conv3(x2))
@@ -48,7 +47,7 @@ class REDCNN(nn.Module):
 
         return out
 
-    def load_pretrained_weights(self, path, device='cpu'):
+    def load_pretrained_weights(self, path, device="cpu"):
         state_dict = torch.load(path, map_location=device)
 
         self.load_state_dict(state_dict)

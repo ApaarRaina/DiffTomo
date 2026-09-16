@@ -1,4 +1,4 @@
-#FBPConvNet implementation based on:
+# FBPConvNet implementation based on:
 
 # K. H. Jin et al.,
 # 'Deep Convolutional Neural Network for Inverse Problems in Imaging,'
@@ -8,13 +8,11 @@
 # https://github.com/panakino/FBPConvNet
 
 
-
 import torch
 import torch.nn as nn
 
 
 class FBPConvNet(nn.Module):
-
     def __init__(self, in_channels=1, out_channels=1):
         super().__init__()
 
@@ -25,42 +23,30 @@ class FBPConvNet(nn.Module):
 
         self.bottleneck = self.conv_block(512, 1024)
 
-        self.up4 = nn.ConvTranspose2d(
-            1024, 512, kernel_size=2, stride=2
-        )
+        self.up4 = nn.ConvTranspose2d(1024, 512, kernel_size=2, stride=2)
         self.dec4 = self.conv_block(1024, 512)
 
-        self.up3 = nn.ConvTranspose2d(
-            512, 256, kernel_size=2, stride=2
-        )
+        self.up3 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
         self.dec3 = self.conv_block(512, 256)
 
-        self.up2 = nn.ConvTranspose2d(
-            256, 128, kernel_size=2, stride=2
-        )
+        self.up2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
         self.dec2 = self.conv_block(256, 128)
 
-        self.up1 = nn.ConvTranspose2d(
-            128, 64, kernel_size=2, stride=2
-        )
+        self.up1 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
         self.dec1 = self.conv_block(128, 64)
 
-        self.out_conv = nn.Conv2d(
-            64, out_channels, kernel_size=1
-        )
+        self.out_conv = nn.Conv2d(64, out_channels, kernel_size=1)
 
     @staticmethod
     def conv_block(in_channels, out_channels):
         return nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
-
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
         )
 
     def forward(self, x):
-
         e1 = self.enc1(x)
         p1 = nn.functional.max_pool2d(e1, 2)
 
@@ -73,9 +59,7 @@ class FBPConvNet(nn.Module):
         e4 = self.enc4(p3)
         p4 = nn.functional.max_pool2d(e4, 2)
 
-
         b = self.bottleneck(p4)
-
 
         u4 = self.up4(b)
         u4 = torch.cat([u4, e4], dim=1)

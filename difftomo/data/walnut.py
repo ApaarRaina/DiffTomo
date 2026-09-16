@@ -4,12 +4,16 @@ from scipy.io import loadmat
 import torch
 import numpy as np
 
+
 class WalnutDataset:
     def __init__(self, res=82):
         self.path = f"Walnut_dataset/Data{res}.mat"
-        self.gt_path = f"Walnut_dataset/GroundTruthReconstruction.mat"
-        self.og_path = f"Walnut_dataset/FullSizeSinograms.mat"
-        self.url, self.destination = 'https://zenodo.org/api/records/1254206/files-archive', 'Walnut_dataset'
+        self.gt_path = "Walnut_dataset/GroundTruthReconstruction.mat"
+        self.og_path = "Walnut_dataset/FullSizeSinograms.mat"
+        self.url, self.destination = (
+            "https://zenodo.org/api/records/1254206/files-archive",
+            "Walnut_dataset",
+        )
         self.downloaded = download_file(self.url, "files_archive")
         self.unzipped = extract_zip(Path("files_archive"), Path(self.destination))
         self.system_matrix = self._extract_system_matrix(self.path)
@@ -20,7 +24,7 @@ class WalnutDataset:
 
     def _extract_system_matrix(self, path):
         data = loadmat(path)
-        data = data['A']
+        data = data["A"]
         data = data.tocoo()
 
         indices = torch.tensor(np.array([data.row, data.col]), dtype=torch.long)
@@ -30,13 +34,13 @@ class WalnutDataset:
 
     def _extract_sinogram(self, path):
         data = loadmat(path)
-        data = data['m']
+        data = data["m"]
 
         return torch.tensor(data)
 
     def _get_gt_data(self, path):
         data = loadmat(path)
-        data = data['FBP1200']
+        data = data["FBP1200"]
 
         return torch.from_numpy(data.astype(np.float32))
 

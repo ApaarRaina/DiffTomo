@@ -1,3 +1,3 @@
 from .REDCNN import REDCNN
 
-__all__ = ['REDCNN']
+__all__ = ["REDCNN"]

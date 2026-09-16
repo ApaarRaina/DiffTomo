@@ -14,14 +14,10 @@ class CarvedCheeseDataset:
 
         self.destination = Path("CarvedCheese")
 
-        self.url_base = (
-            "https://zenodo.org/records/1254210/files"
-        )
+        self.url_base = "https://zenodo.org/records/1254210/files"
 
         # File required for this particular configuration
-        self.data_filename = (
-            f"Data{self.view}_{self.resolution}x{self.projections}.mat"
-        )
+        self.data_filename = f"Data{self.view}_{self.resolution}x{self.projections}.mat"
 
         self.url_list = [
             f"{self.url_base}/{self.data_filename}?download=1",
@@ -66,15 +62,15 @@ class CarvedCheeseDataset:
 
     def _extract_sinogram(self, res, projections, view):
         path = self.destination / f"Data{view}_{res}x{projections}.mat"
-        return torch.tensor(load_mat(path)['m'])
+        return torch.tensor(load_mat(path)["m"])
 
-    def extract_measured_sinograms(self, projections=15, view='Full'):
+    def extract_measured_sinograms(self, projections=15, view="Full"):
         path = self.destination / "FullSizeSinograms.mat"
-        return torch.tensor(load_mat(path)[f'sinogram{projections}{view}View'])
+        return torch.tensor(load_mat(path)[f"sinogram{projections}{view}View"])
 
-    def _extract_norm(self):
+    def _extract_norm(self, view, res, projections):
         path = self.destination / f"Data{view}_{res}x{projections}.mat"
-        return torch.tensor(load_mat(path)['normA'])
+        return torch.tensor(load_mat(path)["normA"])
 
     def _extract_system_matrix(self, res, projections, view):
         filename = f"Data{view}_{res}x{projections}.mat"
@@ -91,4 +87,4 @@ class CarvedCheeseDataset:
 
     def _extract_gt(self):
         path = self.destination / "GroundTruthReconstruction.mat"
-        return torch.tensor(load_mat(path)['FBP360'])
+        return torch.tensor(load_mat(path)["FBP360"])

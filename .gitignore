@@ -1,0 +1,11 @@
+difftomo.egg-info
+test/CarvedCheese
+test/Walut_dataset
+test/files_archive
+.pytest_cache
+.ruff_cache
+difftomo/__pycache__
+difftomo/data/__pycache__
+difftomo/difftomo.egg-info
+__pycache__
+.idea

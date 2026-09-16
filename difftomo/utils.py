@@ -1,6 +1,4 @@
-import os
 from pathlib import Path
-from urllib.parse import urlparse
 import zipfile
 import requests
 from scipy.io import loadmat
@@ -8,6 +6,7 @@ from tqdm import tqdm
 import h5py
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
+
 
 def load_mat(path):
     path = Path(path)
@@ -18,17 +17,14 @@ def load_mat(path):
     except NotImplementedError:
         with h5py.File(path, "r") as f:
             return {
-                key: np.array(f[key])
-                for key in f.keys()
-                if not key.startswith("#")
+                key: np.array(f[key]) for key in f.keys() if not key.startswith("#")
             }
 
-def download_chunk(byte_range):
+
+def download_chunk(byte_range, url, destination, timeout=60):
     start, end = byte_range
 
-    headers = {
-        "Range": f"bytes={start}-{end}"
-    }
+    headers = {"Range": f"bytes={start}-{end}"}
 
     with requests.get(
         url,
@@ -37,22 +33,18 @@ def download_chunk(byte_range):
         allow_redirects=True,
         timeout=timeout,
     ) as response:
-
         if response.status_code != 206:
             raise RuntimeError(
-                f"Expected HTTP 206 for range "
-                f"{start}-{end}, got "
-                f"{response.status_code}"
+                f"Expected HTTP 206 for range {start}-{end}, got {response.status_code}"
             )
 
         with destination.open("r+b") as f:
             f.seek(start)
 
-            for chunk in response.iter_content(
-                chunk_size=1024 * 1024
-            ):
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
                 if chunk:
                     f.write(chunk)
+
 
 def download_file(
     url,
@@ -82,19 +74,19 @@ def download_file(
     if content_length is None:
         # Fall back to normal streaming download
         with requests.get(
-                url,
-                stream=True,
-                allow_redirects=True,
-                timeout=timeout,
+            url,
+            stream=True,
+            allow_redirects=True,
+            timeout=timeout,
         ) as response:
             response.raise_for_status()
 
             with destination.open("wb") as f:
                 for chunk in tqdm(
-                        response.iter_content(chunk_size=chunk_size),
-                        desc=destination.name,
-                        unit="B",
-                        unit_scale=True,
+                    response.iter_content(chunk_size=chunk_size),
+                    desc=destination.name,
+                    unit="B",
+                    unit_scale=True,
                 ):
                     if chunk:
                         f.write(chunk)
@@ -103,10 +95,23 @@ def download_file(
 
     total_size = int(content_length)
 
+    ranges = [
+        (start, min(start + chunk_size - 1, total_size - 1))
+        for start in range(0, total_size, chunk_size)
+    ]
+
     with ThreadPoolExecutor(max_workers=workers) as executor:
         list(
             tqdm(
-                executor.map(download_chunk, ranges),
+                executor.map(
+                    lambda byte_range: download_chunk(
+                        byte_range,
+                        url,
+                        destination,
+                        timeout,
+                    ),
+                    ranges,
+                ),
                 total=len(ranges),
                 desc=destination.name,
                 unit="chunk",
@@ -114,6 +119,7 @@ def download_file(
         )
 
     return 1
+
 
 def extract_zip(path, destination):
     destination = Path(destination)
@@ -124,4 +130,3 @@ def extract_zip(path, destination):
         return 1
 
     return 0
-
