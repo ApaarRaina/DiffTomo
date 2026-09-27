@@ -2,7 +2,7 @@
 #include<torch/extension.h>
 
 
-torch::Tensor Forward_line(torch::Tensor image,  
+torch::Tensor projector_forward(torch::Tensor image,  
                                 int projections, 
                                 int detector_bins, 
                                 float detector_spacing, 
@@ -10,5 +10,5 @@ torch::Tensor Forward_line(torch::Tensor image,
                                 float distance);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("forward_siddon", &Forward_line);
+    m.def("forward_siddon", &projector_forward);
 }
