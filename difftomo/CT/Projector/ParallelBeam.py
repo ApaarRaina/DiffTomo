@@ -19,15 +19,16 @@ class ParallelBeamProjector:
         self.distance = distance
         self.type = type
 
-
     def forward(self, image):
         if self.type == "line":
-            return forward_siddon(image, 
-                                self.projections, 
-                                self.detectors, 
-                                self.detector_spacing, 
-                                self.coverage, 
-                                self.distance)
+            return forward_siddon(
+                image,
+                self.projections,
+                self.detectors,
+                self.detector_spacing,
+                self.coverage,
+                self.distance,
+            )
 
     def backward(self):
         pass

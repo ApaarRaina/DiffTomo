@@ -6,13 +6,8 @@ setup(
     ext_modules=[
         CUDAExtension(
             name="difftomo_cuda",
-            sources=[
-                "bindings.cpp",
-                "Siddon_algo.cu"
-            ],
+            sources=["bindings.cpp", "Siddon_algo.cu"],
         )
     ],
-    cmdclass={
-        "build_ext": BuildExtension
-    },
+    cmdclass={"build_ext": BuildExtension},
 )

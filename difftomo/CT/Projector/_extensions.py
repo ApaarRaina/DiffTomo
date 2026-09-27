@@ -1,5 +1,4 @@
 from pathlib import Path
-import importlib.abc
 import os
 
 from torch.utils.cpp_extension import load

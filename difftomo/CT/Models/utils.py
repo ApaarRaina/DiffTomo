@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 
 
@@ -8,7 +7,7 @@ def to_2tuple(x):
     return (x, x)
 
 
-def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
+def trunc_normal_(tensor, mean=0.0, std=1.0, a=-2.0, b=2.0):
     return nn.init.trunc_normal_(
         tensor,
         mean=mean,
@@ -19,12 +18,12 @@ def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
 
 
 class DropPath(nn.Module):
-    def __init__(self, drop_prob=0.):
+    def __init__(self, drop_prob=0.0):
         super().__init__()
         self.drop_prob = drop_prob
 
     def forward(self, x):
-        if self.drop_prob == 0. or not self.training:
+        if self.drop_prob == 0.0 or not self.training:
             return x
 
         keep_prob = 1 - self.drop_prob
