@@ -37,8 +37,10 @@ class DropPath(nn.Module):
 
         return x * random_tensor
 
+
 def load_gdrive(url, output_path):
     gdown.download(url, output_path, quiet=False)
+
 
 def get_weight_file(url, output_path):
     try:

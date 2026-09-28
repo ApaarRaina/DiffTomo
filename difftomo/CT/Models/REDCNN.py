@@ -55,7 +55,7 @@ class REDCNN(nn.Module):
 
         if not os.path.exists(weights_folder_path):
             os.makedirs(weights_folder_path)
-        
+
         get_weight_file(url, path)
         state_dict = torch.load(path, map_location=device)
 

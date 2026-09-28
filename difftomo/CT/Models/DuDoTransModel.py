@@ -1162,7 +1162,7 @@ class Reconstructor(nn.Module):
             self.path = "difftomo/CT/Models/weights/DuDoTrans.pth.tar"
 
         if load_pretrained:
-            url="https://drive.google.com/uc?id=1EWFb6TiCQn6XkKF5U7vktVexc_MiPglu"
+            url = "https://drive.google.com/uc?id=1EWFb6TiCQn6XkKF5U7vktVexc_MiPglu"
             weights_folder_path = "difftomo/CT/Models/weights"
             if not os.path.exists(weights_folder_path):
                 os.makedirs(weights_folder_path)
@@ -1170,7 +1170,6 @@ class Reconstructor(nn.Module):
             self.load_pretrained(path=self.path, device=device, strict=True)
 
     def load_pretrained(self, path, device="cpu", strict=True):
-
         checkpoint = torch.load(
             path,
             map_location=device,
