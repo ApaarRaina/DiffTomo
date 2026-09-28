@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+from .utils import get_weight_file
+import os
 
 
 class REDCNN(nn.Module):
@@ -21,7 +23,7 @@ class REDCNN(nn.Module):
         self.relu = nn.ReLU(inplace=False)
 
         if load_pretrained:
-            self.path = "weights/redcnn.pth"
+            self.path = "difftomo/CT/Models/weights/redcnn.pth"
             self.load_pretrained_weights(self.path, device=device)
 
     def forward(self, x):
@@ -48,6 +50,13 @@ class REDCNN(nn.Module):
         return out
 
     def load_pretrained_weights(self, path, device="cpu"):
+        url = "https://drive.google.com/uc?export=download&id=1PSpuMzcSh6ZPHlUzW5LwdHnkJMQXlEuz"
+        weights_folder_path = "difftomo/CT/Models/weights"
+
+        if not os.path.exists(weights_folder_path):
+            os.makedirs(weights_folder_path)
+        
+        get_weight_file(url, path)
         state_dict = torch.load(path, map_location=device)
 
         self.load_state_dict(state_dict)

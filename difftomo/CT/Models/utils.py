@@ -1,4 +1,5 @@
 import torch.nn as nn
+import gdown
 
 
 def to_2tuple(x):
@@ -35,3 +36,12 @@ class DropPath(nn.Module):
             random_tensor.div_(keep_prob)
 
         return x * random_tensor
+
+def load_gdrive(url, output_path):
+    gdown.download(url, output_path, quiet=False)
+
+def get_weight_file(url, output_path):
+    try:
+        load_gdrive(url, output_path)
+    except Exception as e:
+        print(f"Error downloading weight file: {e}")

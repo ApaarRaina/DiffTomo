@@ -64,6 +64,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
+import os
 from .utils import DropPath, to_2tuple, trunc_normal_, get_weight_file
 
 
@@ -1162,10 +1163,14 @@ class Reconstructor(nn.Module):
 
         if load_pretrained:
             url="https://drive.google.com/uc?id=1EWFb6TiCQn6XkKF5U7vktVexc_MiPglu"
+            weights_folder_path = "difftomo/CT/Models/weights"
+            if not os.path.exists(weights_folder_path):
+                os.makedirs(weights_folder_path)
             get_weight_file(url, self.path)
             self.load_pretrained(path=self.path, device=device, strict=True)
 
     def load_pretrained(self, path, device="cpu", strict=True):
+
         checkpoint = torch.load(
             path,
             map_location=device,
