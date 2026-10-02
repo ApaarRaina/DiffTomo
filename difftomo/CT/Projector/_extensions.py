@@ -19,3 +19,4 @@ difftomo_cuda = load(
 )
 
 forward_siddon = difftomo_cuda.forward_siddon
+backward_siddon = difftomo_cuda.backward_siddon

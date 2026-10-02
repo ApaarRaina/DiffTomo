@@ -174,6 +174,73 @@ __global__
         
     }
 
+__global__ void backprojection_kernel(float* sinogram, float* output, int height, int width, int projections, int detector_bins, float detector_spacing, float coverage, float distance) {
+        int threadsPerBlock = blockDim.x * blockDim.y * blockDim.z;
+        int blocksPerProjection = ceil((float)detector_bins / (float)threadsPerBlock);
+
+        int projection_index = blockIdx.x / blocksPerProjection;
+        int detector_index = blockIdx.x % blocksPerProjection * threadsPerBlock + threadIdx.x;
+
+        float bx = -(height / 2.0f); 
+        float by = -(width / 2.0f);
+        float u = detector_spacing * (detector_index - detector_bins / 2.0f);
+
+        // thread starts executing here so calculate ray for this detector index and projection index
+
+        float angle = projection_index * coverage / projections;
+        float p1[2] = {distance* cosf(angle) - u * sinf(angle),
+                       distance* sinf(angle) + u * cosf(angle)};
+        float p2[2] = {-distance * cosf(angle) - u * sinf(angle),
+                       -distance * sinf(angle) + u * cosf(angle)};
+        
+        float dx = p2[0] - p1[0];
+        float dy = p2[1] - p1[1];
+        float d_conv = sqrtf(dx * dx + dy * dy);
+        float d_ax = (std::abs(dx) > 1e-6f) ? 1.0f / std::abs(dx) : 1e9f;
+        float d_ay = (std::abs(dy) > 1e-6f) ? 1.0f / std::abs(dy) : 1e9f;
+
+        float ax_min = (std::abs(dx) > 1e-6f) ? min((bx - p1[0]) / dx, (bx + height - p1[0]) / dx) : -1e9f;
+        float ax_max = (std::abs(dx) > 1e-6f) ? max((bx - p1[0]) / dx, (bx + height - p1[0]) / dx) :  1e9f;
+
+        float ay_min = (std::abs(dy) > 1e-6f) ? min((by - p1[1]) / dy, (by + width - p1[1]) / dy) : -1e9f;
+        float ay_max = (std::abs(dy) > 1e-6f) ? max((by - p1[1]) / dy, (by + width - p1[1]) / dy) :  1e9f;
+
+        float alpha_min = max(0.0f, max(ax_min, ay_min));
+        float alpha_max = min(1.0f, min(ax_max, ay_max));
+
+
+        
+        // make this a parallelised later
+        for(int i=0; i< height; i++){
+            float ax0 = (bx + i     - p1[0]) / dx;
+            float ax1 = (bx + i + 1 - p1[0]) / dx;
+            float ax_initial = min(ax0, ax1);
+            float ax_next    = max(ax0, ax1);
+
+            for(int j=0; j<width; j++){
+                float ay0 = (by + j     - p1[1]) / dy;
+                float ay1 = (by + j + 1 - p1[1]) / dy;
+
+                float ay_initial = min(ay0, ay1);
+                float ay_next = ay_initial + d_ay;
+
+                float alpha_curr = max(ax_initial, ay_initial);
+                float alpha_next = min(ax_next, ay_next);
+
+                alpha_curr = max(alpha_curr, alpha_min);
+                alpha_next = min(alpha_next, alpha_max);
+                if (alpha_next > alpha_curr){
+                    float length = (alpha_next - alpha_curr) * d_conv;
+                    float val = sinogram[projection_index * detector_bins + detector_index];
+                    atomicAdd(&output[i * width + j], length * val);
+                }
+
+            }
+
+        }
+
+    }
+
 torch::Tensor projector_forward(torch::Tensor image, 
                                 int projections, 
                                 int detector_bins, 
@@ -191,6 +258,38 @@ torch::Tensor projector_forward(torch::Tensor image,
 
     siddon_kernel<<<blocks, threads>>>(
         image.data_ptr<float>(),
+        output.data_ptr<float>(),
+        height,
+        width,
+        projections,
+        detector_bins,
+        detector_spacing,
+        coverage,
+        distance
+    );
+
+    return output;
+}
+
+
+torch::Tensor projector_backward(torch::Tensor sinogram,
+                                const std::vector<int64_t>& image_shape, 
+                                int projections, 
+                                int detector_bins, 
+                                float detector_spacing, 
+                                float coverage, 
+                                float distance)
+{
+
+    int blocks = 10000;
+    int threads = 256;
+    int height = image_shape[0];
+    int width = image_shape[1];
+    auto output = torch::zeros({height, width}, 
+                               torch::TensorOptions().dtype(torch::kFloat32).device(sinogram.device()));
+
+    backprojection_kernel<<<blocks, threads>>>(
+        sinogram.data_ptr<float>(),
         output.data_ptr<float>(),
         height,
         width,

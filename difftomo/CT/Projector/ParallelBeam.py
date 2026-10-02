@@ -1,5 +1,5 @@
 import torch
-from ._extensions import forward_siddon
+from ._extensions import forward_siddon, backward_siddon
 
 
 class ParallelBeamProjector:
@@ -9,7 +9,7 @@ class ParallelBeamProjector:
         detector_bins=800,
         detector_spacing=1,
         coverage=2 * torch.pi,
-        distance=100,
+        distance=300,
         type="line",
     ):
         self.projections = projections
@@ -20,6 +20,8 @@ class ParallelBeamProjector:
         self.type = type
 
     def forward(self, image):
+        self.image_shape = image.shape
+
         if self.type == "line":
             return forward_siddon(
                 image,
@@ -30,5 +32,20 @@ class ParallelBeamProjector:
                 self.distance,
             )
 
-    def backward(self):
-        pass
+    def backward(self, sinogram):
+        if sinogram.shape[0] != self.projections or sinogram.shape[1] != self.detectors:
+            raise ValueError(
+                f"Sinogram shape {sinogram.shape} does not match projector configuration "
+                f"({self.projections}, {self.detectors})"
+            )
+
+        if self.type == "line":
+            return backward_siddon(
+                sinogram,
+                self.image_shape,
+                self.projections,
+                self.detectors,
+                self.detector_spacing,
+                self.coverage,
+                self.distance,
+            )
