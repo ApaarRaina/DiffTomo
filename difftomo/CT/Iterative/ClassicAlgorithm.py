@@ -13,21 +13,22 @@ class SIRT:
             self.image_shape = (self.projector.detectors, self.projector.detectors)
 
     def reconstruct(self, sinogram):
-
-        ones_image = torch.ones((self.projector.detectors, self.projector.detectors), device=self.device)
+        ones_image = torch.ones(
+            (self.projector.detectors, self.projector.detectors), device=self.device
+        )
         row_sum = self.projector.forward(ones_image)
         self.row_sum = torch.where(
-                            row_sum > 1e-8,
-                            1.0 / row_sum,
-                            torch.zeros_like(row_sum)
-                        )
-        ones_sinogram = torch.ones((self.projector.projections, self.projector.detectors), device=self.device)
-        column_sum = self.projector.backward(ones_sinogram, image_shape=self.image_shape)
+            row_sum > 1e-8, 1.0 / row_sum, torch.zeros_like(row_sum)
+        )
+        ones_sinogram = torch.ones(
+            (self.projector.projections, self.projector.detectors), device=self.device
+        )
+        column_sum = self.projector.backward(
+            ones_sinogram, image_shape=self.image_shape
+        )
         self.col_sum = torch.where(
-                            column_sum > 1e-8,
-                            1.0 / column_sum,
-                            torch.zeros_like(column_sum)
-                        )
+            column_sum > 1e-8, 1.0 / column_sum, torch.zeros_like(column_sum)
+        )
         # Initialize the image with zeros
         image_shape = self.image_shape
         image = torch.zeros(image_shape, dtype=torch.float32)
@@ -47,7 +48,7 @@ class SIRT:
 
             # Update the image
 
-            #R
+            # R
             difference = self.row_sum * difference
 
             # A^T

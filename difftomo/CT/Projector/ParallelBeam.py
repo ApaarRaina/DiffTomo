@@ -2,9 +2,7 @@ import torch
 from ._extensions import forward_siddon, backward_siddon
 
 
-
 class _ParallelBeamFunction(torch.autograd.Function):
-
     @staticmethod
     def forward(
         ctx,
@@ -37,7 +35,6 @@ class _ParallelBeamFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_sinogram):
-
         # CUDA A^T
         grad_image = backward_siddon(
             grad_sinogram,
@@ -52,12 +49,13 @@ class _ParallelBeamFunction(torch.autograd.Function):
         # Gradients corresponding to the inputs of forward()
         return (
             grad_image,  # image
-            None,        # projections
-            None,        # detectors
-            None,        # detector_spacing
-            None,        # coverage
-            None,        # distance
+            None,  # projections
+            None,  # detectors
+            None,  # detector_spacing
+            None,  # coverage
+            None,  # distance
         )
+
 
 class ParallelBeamProjector:
     def __init__(
@@ -96,7 +94,9 @@ class ParallelBeamProjector:
         if image_shape is not None:
             self.image_shape = image_shape
         elif not hasattr(self, "image_shape"):
-            raise Warning("Image shape must be provided for backward operation. Will use the default image shape (512x512).")
+            raise Warning(
+                "Image shape must be provided for backward operation. Will use the default image shape (512x512)."
+            )
         if sinogram.shape[0] != self.projections or sinogram.shape[1] != self.detectors:
             raise ValueError(
                 f"Sinogram shape {sinogram.shape} does not match projector configuration "

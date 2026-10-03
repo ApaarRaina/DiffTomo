@@ -1,3 +1,3 @@
-from.ClassicAlgorithm import SIRT
+from .ClassicAlgorithm import SIRT
 
 __all__ = ["SIRT"]
