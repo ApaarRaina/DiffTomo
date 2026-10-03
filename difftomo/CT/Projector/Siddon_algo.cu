@@ -70,6 +70,7 @@ __global__
         int projection_index = blockIdx.x / blocksPerProjection;
         int detector_index = blockIdx.x % blocksPerProjection * threadsPerBlock + threadIdx.x;
 
+        // stopping illegal threads from executing
         if (projection_index >= projections || detector_index >= detector_bins) 
             return;
 
@@ -181,6 +182,10 @@ __global__ void backprojection_kernel(float* sinogram, float* output, int height
         int projection_index = blockIdx.x / blocksPerProjection;
         int detector_index = blockIdx.x % blocksPerProjection * threadsPerBlock + threadIdx.x;
 
+        // stopping illegal threads from executing
+        if (projection_index >= projections || detector_index >= detector_bins) 
+            return;
+
         float bx = -(height / 2.0f); 
         float by = -(width / 2.0f);
         float u = detector_spacing * (detector_index - detector_bins / 2.0f);
@@ -209,34 +214,40 @@ __global__ void backprojection_kernel(float* sinogram, float* output, int height
         float alpha_max = min(1.0f, min(ax_max, ay_max));
 
 
-        
-        // make this a parallelised later
-        for(int i=0; i< height; i++){
-            float ax0 = (bx + i     - p1[0]) / dx;
-            float ax1 = (bx + i + 1 - p1[0]) / dx;
-            float ax_initial = min(ax0, ax1);
-            float ax_next    = max(ax0, ax1);
+        float ax_next = 1e9f;
+        if (std::abs(dx) > 1e-6f) {
+            float rx_entry = p1[0] + alpha_min * dx - bx;
+            int next_i = (dx > 0) ? (int)floorf(rx_entry) + 1 : (int)floorf(rx_entry);
+            ax_next = (bx + (float)next_i - p1[0]) / dx;
+            if (ax_next <= alpha_min) ax_next += d_ax;
+        }
+        float ay_next = 1e9f;
+        if (std::abs(dy) > 1e-6f) {
+            float ry_entry = p1[1] + alpha_min * dy - by;
+            int next_j = (dy > 0) ? (int)floorf(ry_entry) + 1 : (int)floorf(ry_entry);
+            ay_next = (by + (float)next_j - p1[1]) / dy;
+            if (ay_next <= alpha_min) ay_next += d_ay;
+        }
 
-            for(int j=0; j<width; j++){
-                float ay0 = (by + j     - p1[1]) / dy;
-                float ay1 = (by + j + 1 - p1[1]) / dy;
+        float val = sinogram[projection_index * detector_bins + detector_index];
+        float alpha_curr = alpha_min;
 
-                float ay_initial = min(ay0, ay1);
-                float ay_next = ay_initial + d_ay;
+        // --- ray march: scatter instead of gather ---
+        while (alpha_curr < alpha_max - 1e-6f) {
+            float alpha_next = min(alpha_max, min(ax_next, ay_next));
+            float mid_alpha = (alpha_curr + alpha_next) * 0.5f;
 
-                float alpha_curr = max(ax_initial, ay_initial);
-                float alpha_next = min(ax_next, ay_next);
+            int img_i = (int)floorf(p1[0] + mid_alpha * dx - bx);
+            int img_j = (int)floorf(p1[1] + mid_alpha * dy - by);
 
-                alpha_curr = max(alpha_curr, alpha_min);
-                alpha_next = min(alpha_next, alpha_max);
-                if (alpha_next > alpha_curr){
-                    float length = (alpha_next - alpha_curr) * d_conv;
-                    float val = sinogram[projection_index * detector_bins + detector_index];
-                    atomicAdd(&output[i * width + j], length * val);
-                }
-
+            if (img_i >= 0 && img_i < height && img_j >= 0 && img_j < width) {
+                float length = (alpha_next - alpha_curr) * d_conv;
+                atomicAdd(&output[img_i * width + img_j], length * val);
             }
 
+            if (ax_next < ay_next) ax_next += d_ax;
+            else                   ay_next += d_ay;
+            alpha_curr = alpha_next;
         }
 
     }
