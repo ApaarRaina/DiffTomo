@@ -1,6 +1,6 @@
 from pathlib import Path
 import os
-
+import importlib.abc
 from torch.utils.cpp_extension import load
 
 
@@ -13,7 +13,7 @@ difftomo_cuda = load(
     name="difftomo_cuda",
     sources=[
         str(_PROJECTOR_DIR / "bindings.cpp"),
-        str(_PROJECTOR_DIR / "Siddon_algo.cu"),
+        str(_PROJECTOR_DIR / "SiddonParallelBeam.cu"),
     ],
     verbose=True,
 )

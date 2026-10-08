@@ -1159,11 +1159,11 @@ class Reconstructor(nn.Module):
 
         self.path = path
         if self.path is None:
-            self.path = "difftomo/CT/Models/weights/DuDoTrans.pth.tar"
+            self.path = "weights/DuDoTrans.pth.tar"
 
         if load_pretrained:
             url = "https://drive.google.com/uc?id=1EWFb6TiCQn6XkKF5U7vktVexc_MiPglu"
-            weights_folder_path = "difftomo/CT/Models/weights"
+            weights_folder_path = "weights"
             if not os.path.exists(weights_folder_path):
                 os.makedirs(weights_folder_path)
             get_weight_file(url, self.path)

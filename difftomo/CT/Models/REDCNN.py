@@ -23,7 +23,7 @@ class REDCNN(nn.Module):
         self.relu = nn.ReLU(inplace=False)
 
         if load_pretrained:
-            self.path = "difftomo/CT/Models/weights/redcnn.pth"
+            self.path = "weights/redcnn.pth"
             self.load_pretrained_weights(self.path, device=device)
 
     def forward(self, x):
@@ -51,7 +51,7 @@ class REDCNN(nn.Module):
 
     def load_pretrained_weights(self, path, device="cpu"):
         url = "https://drive.google.com/uc?export=download&id=1PSpuMzcSh6ZPHlUzW5LwdHnkJMQXlEuz"
-        weights_folder_path = "difftomo/CT/Models/weights"
+        weights_folder_path = "weights"
 
         if not os.path.exists(weights_folder_path):
             os.makedirs(weights_folder_path)
