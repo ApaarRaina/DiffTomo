@@ -1,4 +1,4 @@
-from difftomo.CT.Iterative import SIRT, TVDenoising
+from difftomo.CT.Iterative import SIRT, TVDenoising, TGVDenoising
 import torch
 import matplotlib.pyplot as plt
 from difftomo.data import SheppLogan
@@ -26,8 +26,12 @@ sirt_sparse = SIRT(projector_sparse, image_shape=img.shape, iterations=iteration
 recon_sirt_sparse = sirt_sparse.reconstruct(sino_sparse)
 
 # TV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
-tv = TVDenoising(projector_sparse, iterations=iterations, lamda=0.01, device=device)
+tv = TVDenoising(projector_sparse, iterations=20, lamda=0.05, device=device)
 recon_tv_sparse = tv.reconstruct(fbp_sparse)   # (sinogram, initial image) signature
+
+# TGV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
+tgv = TGVDenoising(projector_sparse, iterations=20, lamda=[1, 2], device=device)
+recon_tgv_sparse = tgv.reconstruct(fbp_sparse)   # (sinogram, initial image) signature
 
 # ---- plotting ----
 def to_np(t):
@@ -35,7 +39,7 @@ def to_np(t):
 
 vmin, vmax = img.min().item(), img.max().item()   # shared range for image panels
 
-fig, axes = plt.subplots(2, 4, figsize=(15, 9))
+fig, axes = plt.subplots(2, 5, figsize=(15, 9))
 
 # Row 1: full-view (800 projections)
 axes[0, 0].imshow(to_np(sino_full), cmap="gray")
@@ -61,7 +65,10 @@ axes[1, 2].imshow(to_np(recon_sirt_sparse), cmap="gray")
 axes[1, 2].set_title(f"SIRT, sparse-view ({iterations} it.)")
 
 axes[1, 3].imshow(to_np(recon_tv_sparse), cmap="gray")
-axes[1, 3].set_title(f"TV, sparse-view ({iterations} it.)")
+axes[1, 3].set_title(f"TV, sparse-view ({20} it.)")
+
+axes[1, 4].imshow(to_np(recon_tgv_sparse), cmap="gray")
+axes[1, 4].set_title(f"TGV, sparse-view ({20} it.)")
 
 for ax in axes.ravel():
     ax.axis("off")

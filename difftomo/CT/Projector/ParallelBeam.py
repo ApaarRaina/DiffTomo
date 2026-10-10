@@ -1,5 +1,6 @@
 import torch
 from ._extensions import forward_siddon, backward_siddon
+import math
 
 
 class _ParallelBeamFunction(torch.autograd.Function):
@@ -175,6 +176,12 @@ class ParallelBeamProjector:
 
         raise ValueError(f"Unknown projector type: {self.type}")
 
+    def _sinc(self, x):
+        px = math.pi * x
+        zero = x == 0
+        safe = torch.where(zero, torch.ones_like(px), px)
+        return torch.where(zero, torch.ones_like(x), torch.sin(px) / safe)
+
     def FBP(self, sinogram, image_shape=None, filter_type="ram-lak"):
 
         if image_shape is not None:
@@ -206,7 +213,7 @@ class ParallelBeamProjector:
         x = filt / f_max
 
         if filter_type == "shepp-logan":
-            filt = filt * torch.sinc(x / 2)            
+            filt = filt * self._sinc(x / 2)            
         elif filter_type == "cosine":
             filt = filt * torch.cos(torch.pi * x / 2)
         elif filter_type == "hamming":
