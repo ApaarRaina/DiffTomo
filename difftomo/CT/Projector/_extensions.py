@@ -13,7 +13,7 @@ difftomo_cuda = load(
     name="difftomo_cuda",
     sources=[
         str(_PROJECTOR_DIR / "bindings.cpp"),
-        str(_PROJECTOR_DIR / "SiddonParallelBeam.cu"),
+        str(_PROJECTOR_DIR / "SiddonAlgorithm.cu"),
     ],
     verbose=True,
 )

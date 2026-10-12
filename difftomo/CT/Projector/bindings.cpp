@@ -7,7 +7,8 @@ torch::Tensor projector_forward(torch::Tensor image,
                                 int detector_bins, 
                                 float detector_spacing, 
                                 float coverage, 
-                                float distance);
+                                float distance,
+                                char type);
 
 torch::Tensor projector_backward(torch::Tensor sinogram,
                                 const std::vector<int64_t>& image_shape, 
@@ -15,7 +16,8 @@ torch::Tensor projector_backward(torch::Tensor sinogram,
                                 int detector_bins, 
                                 float detector_spacing, 
                                 float coverage, 
-                                float distance);
+                                float distance,
+                                char type);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("forward_siddon", &projector_forward);

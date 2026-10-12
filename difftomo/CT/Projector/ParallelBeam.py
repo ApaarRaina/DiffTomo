@@ -14,6 +14,7 @@ class _ParallelBeamFunction(torch.autograd.Function):
         coverage,
         distance,
     ):
+        ctx.type = 'p'
         # CUDA A
         sinogram = forward_siddon(
             image,
@@ -22,6 +23,7 @@ class _ParallelBeamFunction(torch.autograd.Function):
             detector_spacing,
             coverage,
             distance,
+            ctx.type
         )
 
         # Save what we need to perform A^T later
@@ -45,6 +47,7 @@ class _ParallelBeamFunction(torch.autograd.Function):
             ctx.detector_spacing,
             ctx.coverage,
             ctx.distance,
+            ctx.type
         )
 
         # Gradients corresponding to the inputs of forward()
@@ -69,6 +72,7 @@ class _FBPFunction(torch.autograd.Function):
         coverage,
         distance,
     ):
+        ctx.type = 'p'
         # CUDA A^T
         recon_image = backward_siddon(
             sinogram,
@@ -78,6 +82,7 @@ class _FBPFunction(torch.autograd.Function):
             detector_spacing,
             coverage,
             distance,
+            ctx.type
         )
 
         # Save what we need to perform A^T later
@@ -100,6 +105,7 @@ class _FBPFunction(torch.autograd.Function):
             ctx.detector_spacing,
             ctx.coverage,
             ctx.distance,
+            ctx.type
         )
 
         # Gradients corresponding to the inputs of forward()
@@ -151,6 +157,7 @@ class ParallelBeamProjector:
 
     # function to perform the backward operation without autograd
     def backward(self, sinogram, image_shape=None):
+        self.mode='p'
         if image_shape is not None:
             self.image_shape = image_shape
         elif not hasattr(self, "image_shape"):
@@ -172,6 +179,8 @@ class ParallelBeamProjector:
                 self.detector_spacing,
                 self.coverage,
                 self.distance,
+                self.mode
+
             )
 
         raise ValueError(f"Unknown projector type: {self.type}")

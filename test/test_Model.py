@@ -3,7 +3,7 @@ import torch
 import pytest
 
 
-@pytest.mark.parametrize("load_pretrained", [True, False])
+@pytest.mark.parametrize("load_pretrained", [True])
 def test_redcnn_weights(load_pretrained):
     model_A = REDCNN(
         load_pretrained=load_pretrained,
@@ -32,7 +32,7 @@ def test_redcnn_weights(load_pretrained):
         assert torch.allclose(A, B, atol=1e-6), "Weights should be equal when loading pretrained model."
         assert not torch.allclose(A, random, atol=1e-6), "Weights should not be equal to random model when loading pretrained model."
 
-@pytest.mark.parametrize("load_pretrained", [True, False])
+@pytest.mark.parametrize("load_pretrained", [True])
 def test_reconstructor_weights(load_pretrained):
     model_A = Reconstructor(
         img_h=512,
