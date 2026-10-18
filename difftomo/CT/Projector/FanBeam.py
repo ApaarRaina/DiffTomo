@@ -1,5 +1,5 @@
 import torch
-from ._extensions import forward_siddon, backward_siddon
+from ._extensions import forward_siddon, backward_siddon, forward_siddon_cpu, backward_siddon_cpu
 import math
 
 
@@ -13,18 +13,34 @@ class _FanBeamFunction(torch.autograd.Function):
         detector_spacing,
         coverage,
         distance,
+        workers=16,
+        device='cuda',
     ):
         ctx.type = 'f'
+        ctx.device = device
+        ctx.workers = workers
         # CUDA A
-        sinogram = forward_siddon(
-            image,
-            projections,
-            detectors,
-            detector_spacing,
-            coverage,
-            distance,
-            ctx.type
-        )
+        if ctx.device == 'cuda':
+            sinogram = forward_siddon(
+                image,
+                projections,
+                detectors,
+                detector_spacing,
+                coverage,
+                distance,
+                ctx.type
+            )
+        else:
+            sinogram = forward_siddon_cpu(
+                image,
+                projections,
+                detectors,
+                detector_spacing,
+                coverage,
+                distance,
+                ctx.type,
+                ctx.workers
+            )
 
         # Save what we need to perform A^T later
         ctx.image_shape = image.shape
@@ -39,16 +55,29 @@ class _FanBeamFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_sinogram):
         # CUDA A^T
-        grad_image = backward_siddon(
-            grad_sinogram,
-            ctx.image_shape,
-            ctx.projections,
-            ctx.detectors,
-            ctx.detector_spacing,
-            ctx.coverage,
-            ctx.distance,
-            ctx.type
-        )
+        if ctx.device == 'cuda':
+            grad_image = backward_siddon(
+                grad_sinogram,
+                ctx.image_shape,
+                ctx.projections,
+                ctx.detectors,
+                ctx.detector_spacing,
+                ctx.coverage,
+                ctx.distance,
+                ctx.type
+            )
+        else:
+            grad_image = backward_siddon_cpu(
+                grad_sinogram,
+                ctx.image_shape,
+                ctx.projections,
+                ctx.detectors,
+                ctx.detector_spacing,
+                ctx.coverage,
+                ctx.distance,
+                ctx.type,
+                ctx.workers
+            )
 
         # Gradients corresponding to the inputs of forward()
         return (
@@ -71,19 +100,36 @@ class _FBPFunction(torch.autograd.Function):
         detector_spacing,
         coverage,
         distance,
+        workers=16,
+        device='cuda',
     ):
         ctx.type = 'f'
+        ctx.device = device
+        ctx.workers = workers
         # CUDA A^T
-        recon_image = backward_siddon(
-            sinogram,
-            image_shape,
-            projections,
-            detectors,
-            detector_spacing,
-            coverage,
-            distance,
-            ctx.type
-        )
+        if ctx.device == 'cuda':
+            recon_image = backward_siddon(
+                sinogram,
+                image_shape,
+                projections,
+                detectors,
+                detector_spacing,
+                coverage,
+                distance,
+                ctx.type
+            )
+        else:
+            recon_image = backward_siddon_cpu(
+                sinogram,
+                image_shape,
+                projections,
+                detectors,
+                detector_spacing,
+                coverage,
+                distance,
+                ctx.type,
+                ctx.workers
+            )
 
         # Save what we need to perform A^T later
         ctx.image_shape = image_shape
@@ -98,15 +144,28 @@ class _FBPFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_recon_image):
         # CUDA A
-        grad_sinogram = forward_siddon(
-            grad_recon_image.contiguous(),
-            ctx.projections,
-            ctx.detectors,
-            ctx.detector_spacing,
-            ctx.coverage,
-            ctx.distance,
-            ctx.type
-        )
+        if ctx.device == 'cuda':
+            grad_sinogram = forward_siddon(
+                grad_recon_image.contiguous(),
+                ctx.projections,
+                ctx.detectors,
+                ctx.detector_spacing,
+                ctx.coverage,
+                ctx.distance,
+                ctx.type
+            )
+
+        else:
+            grad_sinogram = forward_siddon_cpu(
+                grad_recon_image.contiguous(),
+                ctx.projections,
+                ctx.detectors,
+                ctx.detector_spacing,
+                ctx.coverage,
+                ctx.distance,
+                ctx.type,
+                ctx.workers
+            )
 
         # Gradients corresponding to the inputs of forward()
         return (
@@ -131,6 +190,8 @@ class FanBeamProjector:
         distance=400,
         type="line",
         device="cpu",
+        workers=16,
+        pre_weighting=False
     ):
         self.projections = projections
         self.detectors = detector_bins
@@ -139,6 +200,8 @@ class FanBeamProjector:
         self.distance = distance
         self.type = type
         self.device = device
+        self.workers = workers
+        self.pre_weighting = pre_weighting
 
     def forward(self, image):
         self.image_shape = image.shape
@@ -151,6 +214,8 @@ class FanBeamProjector:
                 self.detector_spacing,
                 self.coverage,
                 self.distance,
+                self.workers,
+                self.device
             )
 
         raise ValueError(f"Unknown projector type: {self.type}")
@@ -171,16 +236,29 @@ class FanBeamProjector:
             )
 
         if self.type == "line":
-            return backward_siddon(
-                sinogram,
-                self.image_shape,
-                self.projections,
-                self.detectors,
-                self.detector_spacing,
-                self.coverage,
-                self.distance,
-                self.mode
-            )
+            if self.device == 'cuda':
+                return backward_siddon(
+                    sinogram,
+                    self.image_shape,
+                    self.projections,
+                    self.detectors,
+                    self.detector_spacing,
+                    self.coverage,
+                    self.distance,
+                    self.mode
+                )
+            else:
+                return backward_siddon_cpu(
+                    sinogram,
+                    self.image_shape,
+                    self.projections,
+                    self.detectors,
+                    self.detector_spacing,
+                    self.coverage,
+                    self.distance,
+                    self.mode,
+                    self.workers
+                )
 
         raise ValueError(f"Unknown projector type: {self.type}")
     
@@ -215,6 +293,11 @@ class FanBeamProjector:
         pad_len = max(64, 2 ** int(torch.ceil(torch.log2(torch.tensor(2 * n)))))
         scale = torch.tensor(torch.pi / (self.projections)).to(self.device)
 
+        if self.pre_weighting:
+            D = self.distance          # use the source-to-detector distance here
+            t = (torch.arange(n, device=sinogram.device) - (n - 1) / 2) * self.detector_spacing
+            sinogram = sinogram * (D / torch.sqrt(D**2 + t**2))[None, :]
+
         freqs = torch.fft.fftfreq(pad_len, d=float(self.detector_spacing)).to(sinogram.device)
         filt = torch.abs(freqs)
         f_max = 1.0 / (2.0 * float(self.detector_spacing))
@@ -243,6 +326,8 @@ class FanBeamProjector:
                 self.detector_spacing,
                 self.coverage,
                 self.distance,
+                self.workers,
+                self.device
             ) * scale
 
         raise ValueError(f"Unknown projector type: {self.type}")

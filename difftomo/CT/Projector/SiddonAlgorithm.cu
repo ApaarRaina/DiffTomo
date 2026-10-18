@@ -235,8 +235,9 @@ torch::Tensor projector_forward(torch::Tensor image,
                                 char type)
 {
 
-    int blocks = 10000;
     int threads = 256;
+    int blocks_per_projection = (detector_bins + threads - 1) / threads;
+    int blocks = projections * blocks_per_projection;
     int height = image.size(0);
     int width = image.size(1);
     auto output = torch::zeros({projections, detector_bins}, 
@@ -269,8 +270,9 @@ torch::Tensor projector_backward(torch::Tensor sinogram,
                                 char type)
 {
 
-    int blocks = 10000;
     int threads = 256;
+    int blocks_per_projection = (detector_bins + threads - 1) / threads;
+    int blocks = projections * blocks_per_projection;
     int height = image_shape[0];
     int width = image_shape[1];
     auto output = torch::zeros({height, width}, 

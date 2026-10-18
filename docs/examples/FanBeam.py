@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 img = SheppLogan().data.to("cuda")
 
-projector = FanBeamProjector(projections=1000, detector_bins=900, device="cuda")
+projector = FanBeamProjector(projections=800, detector_bins=800, device="cuda")
 sinogram = projector.forward(img)
 
 backprojection = projector.backward(sinogram)
