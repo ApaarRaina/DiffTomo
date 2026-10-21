@@ -2,13 +2,26 @@
 #include<torch/extension.h>
 
 __global__  
-    void siddon_kernel(float* image, float* output, int height, int width, int projections, int detector_bins, float detector_spacing, float coverage, float distance, char type) {
+    void siddon_kernel(float* image, float* output, int batches, int channels, int height, int width, int projections, int detector_bins, float detector_spacing, float coverage, float distance, char type) {
 
         int threadsPerBlock = blockDim.x * blockDim.y * blockDim.z;
-        int blocksPerProjection = ceil((float)detector_bins / (float)threadsPerBlock);
 
-        int projection_index = blockIdx.x / blocksPerProjection;
-        int detector_index = blockIdx.x % blocksPerProjection * threadsPerBlock + threadIdx.x;
+        int blocksPerProjection =
+            (detector_bins + threadsPerBlock - 1) / threadsPerBlock;
+
+        int blocksPerImage = projections * blocksPerProjection;
+
+        int image_index = blockIdx.x / blocksPerImage;
+        int block_in_image = blockIdx.x % blocksPerImage;
+
+        int batch_index = image_index / channels;
+        int channel_index = image_index % channels;
+
+        int projection_index = block_in_image / blocksPerProjection;
+
+        int block_in_projection = block_in_image % blocksPerProjection;
+
+        int detector_index =block_in_projection * threadsPerBlock + threadIdx.x;
 
         // stopping illegal threads from executing
         if (projection_index >= projections || detector_index >= detector_bins) 
@@ -117,7 +130,7 @@ __global__
 
             if (img_i >= 0 && img_i < height && img_j >= 0 && img_j < width) {
                 float length = (alpha_next - alpha_curr) * d_conv;
-                sum += length * image[img_i * width + img_j];
+                sum += length * image[batch_index * channels * height * width + channel_index * height * width + img_i * width + img_j];
             }
 
             if (ax_next < ay_next) {
@@ -128,16 +141,29 @@ __global__
             alpha_curr = alpha_next;
         }
 
-        output[projection_index * detector_bins + detector_index] = sum;
+        output[batch_index * channels * projections * detector_bins + channel_index * projections * detector_bins + projection_index * detector_bins + detector_index] = sum;
         
     }
 
-__global__ void backprojection_kernel(float* sinogram, float* output, int height, int width, int projections, int detector_bins, float detector_spacing, float coverage, float distance, char type) {
+__global__ void backprojection_kernel(float* sinogram, float* output, int batches, int channels, int height, int width, int projections, int detector_bins, float detector_spacing, float coverage, float distance, char type) {
         int threadsPerBlock = blockDim.x * blockDim.y * blockDim.z;
-        int blocksPerProjection = ceil((float)detector_bins / (float)threadsPerBlock);
 
-        int projection_index = blockIdx.x / blocksPerProjection;
-        int detector_index = blockIdx.x % blocksPerProjection * threadsPerBlock + threadIdx.x;
+        int blocksPerProjection =
+            (detector_bins + threadsPerBlock - 1) / threadsPerBlock;
+
+        int blocksPerImage = projections * blocksPerProjection;
+
+        int image_index = blockIdx.x / blocksPerImage;
+        int block_in_image = blockIdx.x % blocksPerImage;
+
+        int batch_index = image_index / channels;
+        int channel_index = image_index % channels;
+
+        int projection_index = block_in_image / blocksPerProjection;
+
+        int block_in_projection = block_in_image % blocksPerProjection;
+
+        int detector_index =block_in_projection * threadsPerBlock + threadIdx.x;
 
         // stopping illegal threads from executing
         if (projection_index >= projections || detector_index >= detector_bins) 
@@ -203,7 +229,7 @@ __global__ void backprojection_kernel(float* sinogram, float* output, int height
             if (ay_next <= alpha_min) ay_next += d_ay;
         }
 
-        float val = sinogram[projection_index * detector_bins + detector_index];
+        float val = sinogram[batch_index * channels * projections * detector_bins + channel_index * projections * detector_bins + projection_index * detector_bins + detector_index];
         float alpha_curr = alpha_min;
 
         // --- ray march: scatter instead of gather ---
@@ -216,7 +242,7 @@ __global__ void backprojection_kernel(float* sinogram, float* output, int height
 
             if (img_i >= 0 && img_i < height && img_j >= 0 && img_j < width) {
                 float length = (alpha_next - alpha_curr) * d_conv;
-                atomicAdd(&output[img_i * width + img_j], length * val);
+                atomicAdd(&output[batch_index * channels * height * width + channel_index * height * width + img_i * width + img_j], length * val);
             }
 
             if (ax_next < ay_next) ax_next += d_ax;
@@ -235,17 +261,24 @@ torch::Tensor projector_forward(torch::Tensor image,
                                 char type)
 {
 
+    int batches = image.size(0);
+    int channels = image.size(1);
+    int height = image.size(2);
+    int width = image.size(3);
+
     int threads = 256;
     int blocks_per_projection = (detector_bins + threads - 1) / threads;
-    int blocks = projections * blocks_per_projection;
-    int height = image.size(0);
-    int width = image.size(1);
-    auto output = torch::zeros({projections, detector_bins}, 
+    int blocks_per_image = projections * blocks_per_projection;
+    int blocks = batches * channels * blocks_per_image;
+
+    auto output = torch::zeros({batches, channels, projections, detector_bins}, 
                                torch::TensorOptions().dtype(torch::kFloat32).device(image.device()));
     
     siddon_kernel<<<blocks, threads>>>(
         image.data_ptr<float>(),
         output.data_ptr<float>(),
+        batches,
+        channels,
         height,
         width,
         projections,
@@ -269,18 +302,24 @@ torch::Tensor projector_backward(torch::Tensor sinogram,
                                 float distance,
                                 char type)
 {
+    int batches = sinogram.size(0);
+    int channels = sinogram.size(1);
+    int height = image_shape[2];
+    int width = image_shape[3];
 
     int threads = 256;
     int blocks_per_projection = (detector_bins + threads - 1) / threads;
-    int blocks = projections * blocks_per_projection;
-    int height = image_shape[0];
-    int width = image_shape[1];
-    auto output = torch::zeros({height, width}, 
+    int blocks_per_image = projections * blocks_per_projection;
+    int blocks = batches * channels * blocks_per_image;
+
+    auto output = torch::zeros({batches, channels, height, width}, 
                                torch::TensorOptions().dtype(torch::kFloat32).device(sinogram.device()));
     
     backprojection_kernel<<<blocks, threads>>>(
         sinogram.data_ptr<float>(),
         output.data_ptr<float>(),
+        batches,
+        channels,
         height,
         width,
         projections,

@@ -1,7 +1,7 @@
 import torch
 from ._extensions import forward_siddon, backward_siddon, forward_siddon_cpu, backward_siddon_cpu
 import math
-
+import warnings
 
 class _FanBeamFunction(torch.autograd.Function):
     @staticmethod
@@ -50,7 +50,7 @@ class _FanBeamFunction(torch.autograd.Function):
         ctx.coverage = coverage
         ctx.distance = distance
 
-        return sinogram
+        return sinogram.to(ctx.device)
 
     @staticmethod
     def backward(ctx, grad_sinogram):
@@ -81,7 +81,7 @@ class _FanBeamFunction(torch.autograd.Function):
 
         # Gradients corresponding to the inputs of forward()
         return (
-            grad_image,  # image
+            grad_image.to(ctx.device),  # image
             None,  # projections
             None,  # detectors
             None,  # detector_spacing
@@ -139,7 +139,7 @@ class _FBPFunction(torch.autograd.Function):
         ctx.coverage = coverage
         ctx.distance = distance
 
-        return recon_image
+        return recon_image.to(ctx.device)
 
     @staticmethod
     def backward(ctx, grad_recon_image):
@@ -206,6 +206,33 @@ class FanBeamProjector:
     def forward(self, image):
         self.image_shape = image.shape
 
+        if image.device.type != self.device:
+            ValueError(f"Image not on device: {self.device}. ")
+
+
+        if len(self.image_shape) == 2:
+            warnings.warn(
+                "Image dimension contains only height and width. "
+                "Expected (batch, channels, height, width). "
+                "Automatically reshaping to (1, 1, height, width).",
+                UserWarning
+            )
+            self.image_shape = (1, 1, *self.image_shape)
+            image = image.unsqueeze(0).unsqueeze(0)
+
+        elif len(self.image_shape) == 3:
+            warnings.warn(
+                "Image dimension contains three dimensions. "
+                "Expected (batch, channels, height, width). "
+                "Automatically reshaping to (1, channels, height, width).",
+                UserWarning
+            )
+            self.image_shape = (1, *self.image_shape)
+            image = image.unsqueeze(0)
+
+        elif len(self.image_shape) > 4:
+            raise ValueError(f"Image dimension is greater than 4, expected 4 dimensions (batch, channels, height, width).")
+
         if self.type == "line":
             return _FanBeamFunction.apply(
                 image,
@@ -223,13 +250,65 @@ class FanBeamProjector:
     # function to perform the backward operation without autograd
     def backward(self, sinogram, image_shape=None):
         self.mode = 'f'
+        sinogram_shape = tuple(sinogram.shape)
+
+        if sinogram.device.type != self.device:
+            ValueError(f"Image not on device: {self.device}. ")
+
+
+        if len(sinogram_shape) == 2:
+            warnings.warn(
+                "Image dimension contains only height and width. "
+                "Expected (batch, channels, height, width). "
+                "Automatically reshaping to (1, 1, height, width).",
+                UserWarning
+            )
+            sinogram = sinogram.unsqueeze(0).unsqueeze(0)
+
+        elif len(sinogram_shape) == 3:
+            warnings.warn(
+                "Image dimension contains three dimensions. "
+                "Expected (batch, channels, height, width). "
+                "Automatically reshaping to (1, channels, height, width).",
+                UserWarning
+            )
+            sinogram = sinogram.unsqueeze(0)
+
+        elif len(sinogram_shape) > 4:
+            raise ValueError(f"Sinogram dimension is greater than 4, expected 4 dimensions (batch, channels, height, width).")
+
+        batches = sinogram_shape[0]
+
         if image_shape is not None:
             self.image_shape = image_shape
+            if len(self.image_shape) == 2:
+                warnings.warn(
+                    "Image dimension contains only height and width. "
+                    "Expected (batch, channels, height, width). "
+                    "Automatically reshaping to (1, 1, height, width).",
+                    UserWarning
+                )
+                self.image_shape = (batches, 1, *self.image_shape)
+
+            elif len(self.image_shape) == 3:
+                warnings.warn(
+                    "Image dimension contains three dimensions. "
+                    "Expected (batch, channels, height, width). "
+                    "Automatically reshaping to (1, channels, height, width).",
+                    UserWarning
+                )
+                self.image_shape = (batches, *self.image_shape)
+
+            elif len(self.image_shape) > 4:
+                raise ValueError(f"Image dimension is greater than 4, expected 4 dimensions (batch, channels, height, width).")
+
         elif not hasattr(self, "image_shape"):
-            raise Warning(
-                "Image shape must be provided for backward operation. Will use the default image shape (512x512)."
+            self.image_shape = (batches, 1, 512, 512)
+            raise warnings.warn(
+                "Image shape must be provided for backward operation. Will use the default image shape (1x1x512x512).",
+                UserWarning
             )
-        if sinogram.shape[0] != self.projections or sinogram.shape[1] != self.detectors:
+        if sinogram.shape[2] != self.projections or sinogram.shape[3] != self.detectors:
             raise ValueError(
                 f"Sinogram shape {sinogram.shape} does not match projector configuration "
                 f"({self.projections}, {self.detectors})"
@@ -270,15 +349,66 @@ class FanBeamProjector:
 
     def FBP(self, sinogram, image_shape=None, filter_type="shepp-logan"):
 
+        sinogram_shape = tuple(sinogram.shape)
+
+        if sinogram.device.type != self.device:
+            ValueError(f"Image not on device: {self.device}. ")
+
+
+        if len(sinogram_shape) == 2:
+            warnings.warn(
+                "Image dimension contains only height and width. "
+                "Expected (batch, channels, height, width). "
+                "Automatically reshaping to (1, 1, height, width).",
+                UserWarning
+            )
+            sinogram = sinogram.unsqueeze(0).unsqueeze(0)
+
+        elif len(sinogram_shape) == 3:
+            warnings.warn(
+                "Image dimension contains three dimensions. "
+                "Expected (batch, channels, height, width). "
+                "Automatically reshaping to (1, channels, height, width).",
+                UserWarning
+            )
+            sinogram = sinogram.unsqueeze(0)
+
+        elif len(sinogram_shape) > 4:
+            raise ValueError(f"Sinogram dimension is greater than 4, expected 4 dimensions (batch, channels, height, width).")
+
+        batches = sinogram.shape[0]
+        
         if image_shape is not None:
             self.image_shape = image_shape
+            if len(self.image_shape) == 2:
+                warnings.warn(
+                    "Image dimension contains only height and width. "
+                    "Expected (batch, channels, height, width). "
+                    "Automatically reshaping to (1, 1, height, width).",
+                    UserWarning
+                )
+                self.image_shape = (batches, 1, *self.image_shape)
+
+            elif len(self.image_shape) == 3:
+                warnings.warn(
+                    "Image dimension contains three dimensions. "
+                    "Expected (batch, channels, height, width). "
+                    "Automatically reshaping to (1, channels, height, width).",
+                    UserWarning
+                )
+                self.image_shape = (batches, *self.image_shape)
+
+            elif len(self.image_shape) > 4:
+                raise ValueError(f"Image dimension is greater than 4, expected 4 dimensions (batch, channels, height, width).")
 
         elif not hasattr(self, "image_shape"):
-            raise Warning(
-                "Image shape must be provided for backward operation. Will use the default image shape (512x512)."
+            self.image_shape = (batches, 1, 512, 512)
+            raise warnings.warn(
+                "Image shape must be provided for backward operation. Will use the default image shape (1x1x512x512).",
+                UserWarning
             )
         
-        if sinogram.shape[0] != self.projections or sinogram.shape[1] != self.detectors:
+        if sinogram.shape[2] != self.projections or sinogram.shape[3] != self.detectors:
             raise ValueError(
                 f"Sinogram shape {sinogram.shape} does not match projector configuration "
                 f"({self.projections}, {self.detectors})"
@@ -296,7 +426,7 @@ class FanBeamProjector:
         if self.pre_weighting:
             D = self.distance          # use the source-to-detector distance here
             t = (torch.arange(n, device=sinogram.device) - (n - 1) / 2) * self.detector_spacing
-            sinogram = sinogram * (D / torch.sqrt(D**2 + t**2))[None, :]
+            sinogram = sinogram * (D / torch.sqrt(D**2 + t**2))[None, None, None, :]
 
         freqs = torch.fft.fftfreq(pad_len, d=float(self.detector_spacing)).to(sinogram.device)
         filt = torch.abs(freqs)
@@ -314,9 +444,9 @@ class FanBeamProjector:
     
         if self.type == "line":
             sino_padded = torch.nn.functional.pad(sinogram, (0, pad_len - n))
-            F_Rf = torch.fft.fft(sino_padded, dim=1).to(self.device)
+            F_Rf = torch.fft.fft(sino_padded, dim=3).to(self.device)
             F_Rf_filtered = F_Rf * filt[None, :].to(self.device)
-            Rf_filtered = torch.fft.ifft(F_Rf_filtered, dim=1).real[: , :n].contiguous().to(self.device)
+            Rf_filtered = torch.fft.ifft(F_Rf_filtered, dim=3).real[:, :, : , :n].contiguous().to(self.device)
 
             return _FBPFunction.apply(
                 Rf_filtered,

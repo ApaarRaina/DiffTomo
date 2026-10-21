@@ -14,7 +14,7 @@ void update_pixel(float* image, int pixel_index, float contribution) {
     image[pixel_index] += contribution;
 }
 
-void forward_siddon(float* image, float* output, int height, int width, int projections, int projection_index, int detector_bins, int num_threads, int thread_index, float detector_spacing, float coverage, float distance, char type){
+void forward_siddon(float* image, float* output, int height, int width, int projections, int channels, int batch_index, int channel_index, int projection_index, int detector_bins, int num_threads, int thread_index, float detector_spacing, float coverage, float distance, char type){
 
     for (int offset = 0; offset < detector_bins; offset += num_threads){
 
@@ -137,13 +137,13 @@ void forward_siddon(float* image, float* output, int height, int width, int proj
             alpha_curr = alpha_next;
         }
 
-        output[projection_index * detector_bins + detector_index] = sum;
+        output[batch_index * channels * projections * detector_bins + channel_index * projections * detector_bins + projection_index * detector_bins + detector_index] = sum;
     }
 
     return ;
 }
 
-void backward_siddon(float* sinogram, float* output, int height, int width, int projections, int projection_index, int detector_bins, int num_threads, int thread_index, float detector_spacing, float coverage, float distance, char type){
+void backward_siddon(float* sinogram, float* output, int height, int width, int projections, int channels, int batch_index, int channel_index, int projection_index, int detector_bins, int num_threads, int thread_index, float detector_spacing, float coverage, float distance, char type){
 
     for (int offset = 0; offset < detector_bins; offset += num_threads){
         int detector_index = thread_index + offset;
@@ -211,7 +211,7 @@ void backward_siddon(float* sinogram, float* output, int height, int width, int 
             if (ay_next <= alpha_min) ay_next += d_ay;
         }
 
-        float val = sinogram[projection_index * detector_bins + detector_index];
+        float val = sinogram[batch_index * channels * projections * detector_bins + channel_index * projections * detector_bins + projection_index * detector_bins + detector_index];
         float alpha_curr = alpha_min;
 
         // --- ray march: scatter instead of gather ---
@@ -224,7 +224,7 @@ void backward_siddon(float* sinogram, float* output, int height, int width, int 
 
             if (img_i >= 0 && img_i < height && img_j >= 0 && img_j < width) {
                 float length = (alpha_next - alpha_curr) * d_conv;
-                update_pixel(output, img_i * width + img_j, length * val);
+                update_pixel(output, batch_index * channels * height * width + channel_index * height * width  + img_i * width + img_j, length * val);
             }
 
             if (ax_next < ay_next) ax_next += d_ax;
@@ -248,21 +248,27 @@ torch::Tensor projector_forward_cpu(torch::Tensor image,
                                 char type,
                                 int num_threads)
 {
-    int height = image.size(0);
-    int width = image.size(1);
-    auto output = torch::zeros({projections, detector_bins}, 
+    int batches = image.size(0);
+    int channels = image.size(1);
+    int height = image.size(2);
+    int width = image.size(3);
+    auto output = torch::zeros({batches, channels, projections, detector_bins}, 
                                torch::TensorOptions().dtype(torch::kFloat32).device(image.device()));
 
-    for (int projection_index = 0; projection_index < projections; projection_index++){
-        std::vector<std::thread> threads;
+    for(int batch_index = 0; batch_index < batches; batch_index++){
+        for(int channel_index = 0; channel_index < channels; channel_index++){
+            for (int projection_index = 0; projection_index < projections; projection_index++){
+                std::vector<std::thread> threads;
 
-        for (int thread_index = 0; thread_index < num_threads; thread_index++){
-            threads.emplace_back(forward_siddon, image.data_ptr<float>(), output.data_ptr<float>(), height, width, projections, projection_index, detector_bins, num_threads, thread_index, detector_spacing, coverage, distance, type);
+                for (int thread_index = 0; thread_index < num_threads; thread_index++){
+                    threads.emplace_back(forward_siddon, image.data_ptr<float>(), output.data_ptr<float>(), height, width, projections, channels, batch_index, channel_index, projection_index, detector_bins, num_threads, thread_index, detector_spacing, coverage, distance, type);
+                }
+
+                for (auto& t : threads) {
+                    t.join();
+                }   
+            }
         }
-
-        for (auto& t : threads) {
-            t.join();
-        }   
     }
     
     
@@ -279,21 +285,27 @@ torch::Tensor projector_backward_cpu(torch::Tensor sinogram,
                                 char type,
                                 int num_threads)
 {
-    int height = image_shape[0];
-    int width = image_shape[1];
-    auto output = torch::zeros({height, width}, 
+    int batches = sinogram.size(0);
+    int channels = sinogram.size(1);
+    int height = image_shape[2];
+    int width = image_shape[3];
+    auto output = torch::zeros({batches, channels, height, width}, 
                                torch::TensorOptions().dtype(torch::kFloat32).device(sinogram.device()));
 
-    for (int projection_index = 0; projection_index < projections; projection_index++){
-        std::vector<std::thread> threads;
+    for(int batch_index = 0; batch_index < batches; batch_index++){
+        for(int channel_index = 0; channel_index < channels; channel_index++){
+            for (int projection_index = 0; projection_index < projections; projection_index++){
+                std::vector<std::thread> threads;
 
-        for (int thread_index = 0; thread_index < num_threads; thread_index++){
-            threads.emplace_back(backward_siddon, sinogram.data_ptr<float>(), output.data_ptr<float>(), height, width, projections, projection_index, detector_bins, num_threads, thread_index, detector_spacing, coverage, distance, type);
+                for (int thread_index = 0; thread_index < num_threads; thread_index++){
+                    threads.emplace_back(backward_siddon, sinogram.data_ptr<float>(), output.data_ptr<float>(), height, width, projections, channels, batch_index, channel_index, projection_index, detector_bins, num_threads, thread_index, detector_spacing, coverage, distance, type);
+                }
+
+                for (auto& t : threads) {
+                    t.join();
+                }   
+            }
         }
-
-        for (auto& t : threads) {
-            t.join();
-        }   
     }
     
     
