@@ -1,40 +1,44 @@
 import torch
 import torch.nn as nn
 from difftomo.CT.Models import PriorModel
-
-
-
+from tqdm import tqdm
+ 
+ 
 class DRPDenoising:
-    def __init__(self, projector, iterations=30, step_size=0.1):
+
+    def __init__(self, projector, epochs=250, inner_steps=50, step_size=0.25, lr=5e-4):
         self.projector = projector
-        self.iterations = iterations
-        self.Prior = PriorModel().to(self.projector.device)
+        self.epochs = epochs
+        self.inner_steps = inner_steps
+        self.beta = step_size
+        self.lr = lr
         self.loss = nn.MSELoss()
-        self.beat = step_size
+ 
+    def reconstruct(self, sparse_sinogram, prior_model=None):
+        device = self.projector.device
+        p = sparse_sinogram.to(device)
 
-    def reconstruct(self, sparse_sinogram):
+        if prior_model is None:
+            prior = PriorModel().to(device)
+        else:
+            prior = prior_model
 
-        sparse_sinogram = sparse_sinogram.to(self.projector.device)
-        z = self.projector.FBP(sparse_sinogram)
-        residual = sparse_sinogram - self.projector.forward(self.Prior(z.unsqueeze(0).unsqueeze(0)))
-        grad = self.projector.backward(residual)
-        l = self.loss(self.projector.forward(self.Prior(z.unsqueeze(0).unsqueeze(0))), sparse_sinogram)
-        optimizer = torch.optim.Adam(self.Prior.parameters(), lr=1e-4)
+        optimizer = torch.optim.Adam(prior.parameters(), lr=self.lr)
+ 
+        z = self.projector.FBP(p).detach()
+ 
+        for epoch in tqdm(range(self.epochs)):
 
-        for i in range(self.iterations):
-            z = self.Prior(z.unsqueeze(0).unsqueeze(0)) + self.beat * grad
-            l = self.loss(self.projector.forward(self.Prior(z.unsqueeze(0).unsqueeze(0))), sparse_sinogram)
+            with torch.no_grad():
+                x = prior(z)
+                delta = self.projector.backward(p - self.projector.forward(x))
+                z = x + self.beta * delta
 
-            optimizer.zero_grad()
-            l.backward()
-            optimizer.step()
-
-            residual = sparse_sinogram - self.projector.forward(self.Prior(z.unsqueeze(0).unsqueeze(0)))
-            grad = self.projector.backward(residual)
-
-        return self.Prior(z)
-
-
-
-        
-
+            for _ in range(self.inner_steps):
+                loss = self.loss(self.projector.forward(prior(z)), p)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+ 
+        with torch.no_grad():
+            return prior(z)
