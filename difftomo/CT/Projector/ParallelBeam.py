@@ -89,6 +89,8 @@ class _ParallelBeamFunction(torch.autograd.Function):
             None,  # detector_spacing
             None,  # coverage
             None,  # distance
+            None,  # workers
+            None,  # device
         )
 
 class _FBPFunction(torch.autograd.Function):

@@ -79,7 +79,6 @@ class _FanBeamFunction(torch.autograd.Function):
                 ctx.workers
             )
 
-        # Gradients corresponding to the inputs of forward()
         return (
             grad_image.to(ctx.device),  # image
             None,  # projections
@@ -87,6 +86,8 @@ class _FanBeamFunction(torch.autograd.Function):
             None,  # detector_spacing
             None,  # coverage
             None,  # distance
+            None,  # workers
+            None,  # device
         )
 
 class _FBPFunction(torch.autograd.Function):
