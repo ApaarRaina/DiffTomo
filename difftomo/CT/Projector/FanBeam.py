@@ -203,6 +203,7 @@ class FanBeamProjector:
         self.device = device
         self.workers = workers
         self.pre_weighting = pre_weighting
+        self.mode = 'f'
 
     def forward(self, image):
         self.image_shape = image.shape
@@ -250,7 +251,6 @@ class FanBeamProjector:
 
     # function to perform the backward operation without autograd
     def backward(self, sinogram, image_shape=None):
-        self.mode = 'f'
         sinogram_shape = tuple(sinogram.shape)
 
         if sinogram.device.type != self.device:

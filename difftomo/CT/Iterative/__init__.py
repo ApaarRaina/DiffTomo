@@ -1,5 +1,5 @@
-from .ClassicAlgorithm import SIRT
+from .ClassicAlgorithm import SIRT, ART
 from .TV_Minimisation import TVDenoising, TGVDenoising
 from .DIP import DRPDenoising
 
-__all__ = ["SIRT", "TVDenoising", "TGVDenoising", "DRPDenoising"]
+__all__ = ["SIRT", "ART", "TVDenoising", "TGVDenoising", "DRPDenoising"]

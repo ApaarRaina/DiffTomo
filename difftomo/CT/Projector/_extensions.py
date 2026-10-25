@@ -12,8 +12,8 @@ _PROJECTOR_DIR = Path(__file__).parent
 difftomo_cuda = load(
     name="difftomo_cuda",
     sources=[
-        str(_PROJECTOR_DIR / "bindings_cuda.cpp"),
-        str(_PROJECTOR_DIR / "SiddonAlgorithm.cu"),
+        str(_PROJECTOR_DIR / "Cpp_files" / "bindings_cuda.cpp"),
+        str(_PROJECTOR_DIR / "Cuda_files" / "SiddonAlgorithm.cu"),
     ],
     verbose=True,
 )
@@ -21,9 +21,11 @@ difftomo_cuda = load(
 difftomo_cpu = load(
     name = "difftomo_cpu",
     sources = [
-        str(_PROJECTOR_DIR / "bindings_cpu.cpp"),
-        str(_PROJECTOR_DIR / "SiddonAlgorithm.cpp"),
+        str(_PROJECTOR_DIR / "Cpp_files" / "bindings_cpu.cpp"),
+        str(_PROJECTOR_DIR / "Cpp_files" / "SiddonAlgorithm.cpp"),
+        str(_PROJECTOR_DIR / "Cpp_files" / "ARTAlgo.cpp"),
     ],
+    extra_include_paths=[str(_PROJECTOR_DIR)],
     verbose=True,
 )
 
@@ -32,3 +34,4 @@ backward_siddon = difftomo_cuda.backward_siddon
 
 forward_siddon_cpu = difftomo_cpu.forward_siddon_cpu
 backward_siddon_cpu = difftomo_cpu.backward_siddon_cpu
+ARTReconstruction = difftomo_cpu.ARTRecon

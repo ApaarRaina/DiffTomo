@@ -1,8 +1,9 @@
-from difftomo.CT.Iterative import SIRT, TVDenoising, TGVDenoising
+from difftomo.CT.Iterative import SIRT, ART, TVDenoising, TGVDenoising
 import torch
 import matplotlib.pyplot as plt
 from difftomo.data import SheppLogan
 from difftomo.CT.Projector import ParallelBeamProjector, FanBeamProjector
+import cv2 as cv
 
 
 ###########################################################################
@@ -25,11 +26,11 @@ sino_sparse = projector_sparse.forward(img)
 fbp_sparse = projector_sparse.FBP(sino_sparse)
 
 # ---- reconstructions ----
-sirt_full = SIRT(projector_full, image_shape=img.shape, iterations=iterations, device=device)
-recon_sirt_full = sirt_full.reconstruct(sino_full)
+sirt_full = SIRT(projector_full, iterations=iterations, device=device)
+recon_sirt_full = sirt_full.reconstruct(sino_full, image_shape=img.shape)
 
-sirt_sparse = SIRT(projector_sparse, image_shape=img.shape, iterations=iterations, device=device)
-recon_sirt_sparse = sirt_sparse.reconstruct(sino_sparse)
+sirt_sparse = SIRT(projector_sparse, iterations=iterations, device=device)
+recon_sirt_sparse = sirt_sparse.reconstruct(sino_sparse, image_shape=img.shape,)
 
 # TV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
 tv = TVDenoising(projector_sparse, iterations=20, lamda=0.05, device=device)
@@ -103,11 +104,11 @@ sino_sparse = projector_sparse.forward(img)
 fbp_sparse = projector_sparse.FBP(sino_sparse)
 
 # ---- reconstructions ----
-sirt_full = SIRT(projector_full, image_shape=img.shape, iterations=iterations, device=device)
-recon_sirt_full = sirt_full.reconstruct(sino_full)
+sirt_full = SIRT(projector_full, iterations=iterations, device=device)
+recon_sirt_full = sirt_full.reconstruct(sino_full, image_shape=img.shape)
 
-sirt_sparse = SIRT(projector_sparse, image_shape=img.shape, iterations=iterations, device=device)
-recon_sirt_sparse = sirt_sparse.reconstruct(sino_sparse)
+sirt_sparse = SIRT(projector_sparse, iterations=iterations, device=device)
+recon_sirt_sparse = sirt_sparse.reconstruct(sino_sparse, image_shape=img.shape)
 
 # TV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
 tv = TVDenoising(projector_sparse, iterations=20, lamda=0.05, device=device)
@@ -159,4 +160,69 @@ for ax in axes.ravel():
     ax.axis("off")
 
 plt.tight_layout()
+plt.show()
+
+
+#specifically for ART
+###########################################################################
+#                         PARALLEL BEAM GEOMETRY                          #
+###########################################################################
+
+
+phantom = SheppLogan()
+projector = ParallelBeamProjector(projections=300, detector_bins=500, device="cuda")
+img = phantom.data.to("cuda")
+img = torch.tensor(cv.resize(img.cpu().numpy(), (200, 200)), device="cuda")
+sinogram = projector.forward(img)
+fbp_img = projector.FBP(sinogram)
+
+sinogram = sinogram.to("cpu")
+art_recon = ART(projector, iterations=10).reconstruct(sinogram, image_shape=(200, 200), iterations=10)
+
+plt.figure(figsize=(10,10))
+plt.subplot(1,3,1)
+plt.imshow(img.cpu().numpy(), cmap='gray')
+plt.title('Original Image') 
+
+plt.subplot(1,3,2)
+plt.imshow(fbp_img.squeeze(0).squeeze(0).cpu().numpy(), cmap='gray')
+plt.title('FBP Reconstructed Image') 
+
+plt.subplot(1,3,3)
+plt.imshow(art_recon.squeeze(0).squeeze(0).cpu().detach().numpy(), cmap='gray')
+plt.title('ART Reconstruction') 
+
+plt.show()
+
+
+
+###########################################################################
+#                         FAN BEAM GEOMETRY                               #
+###########################################################################
+
+phantom = SheppLogan()
+projector = FanBeamProjector(projections=300, detector_bins=500, device="cuda")
+img = phantom.data.to("cuda")
+print(img.shape)
+img = torch.tensor(cv.resize(img.cpu().numpy(), (200, 200)), device="cuda")
+print(img.shape)
+sinogram = projector.forward(img)
+fbp_img = projector.FBP(sinogram)
+
+sinogram = sinogram.to("cpu")
+art_recon = ART(projector, iterations=10).reconstruct(sinogram, image_shape=(200, 200))
+
+plt.figure(figsize=(10,10))
+plt.subplot(1,3,1)
+plt.imshow(img.cpu().numpy(), cmap='gray')
+plt.title('Original Image') 
+
+plt.subplot(1,3,2)
+plt.imshow(fbp_img.squeeze(0).squeeze(0).cpu().numpy(), cmap='gray')
+plt.title('FBP Reconstructed Image') 
+
+plt.subplot(1,3,3)
+plt.imshow(art_recon.squeeze(0).squeeze(0).cpu().detach().numpy(), cmap='gray')
+plt.title('ART Reconstruction') 
+
 plt.show()

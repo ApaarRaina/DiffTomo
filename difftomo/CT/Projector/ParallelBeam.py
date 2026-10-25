@@ -203,6 +203,7 @@ class ParallelBeamProjector:
         self.type = type
         self.device = device
         self.workers = workers
+        self.mode='p'
 
     def forward(self, image):
         self.image_shape = image.shape
@@ -250,7 +251,6 @@ class ParallelBeamProjector:
 
     # function to perform the backward operation without autograd
     def backward(self, sinogram, image_shape=None):
-        self.mode='p'
         sinogram_shape = tuple(sinogram.shape)
 
         if sinogram.device.type != self.device:
