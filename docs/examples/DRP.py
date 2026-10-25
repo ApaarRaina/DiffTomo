@@ -20,11 +20,15 @@ epochs, inner_steps, step_size = 100, 50, 0.25
 #                         PARALLEL BEAM GEOMETRY                          #
 ###########################################################################
 
-projector_sparse = ParallelBeamProjector(projections=100, detector_bins=800, device=device)
+projector_sparse = ParallelBeamProjector(
+    projections=100, detector_bins=800, device=device
+)
 sino_sparse = projector_sparse.forward(img)
 fbp_sparse = projector_sparse.FBP(sino_sparse)
 
-drp = DRPDenoising(projector_sparse, epochs=epochs, inner_steps=inner_steps, step_size=step_size)
+drp = DRPDenoising(
+    projector_sparse, epochs=epochs, inner_steps=inner_steps, step_size=step_size
+)
 recon_drp = drp.reconstruct(sino_sparse)
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -54,7 +58,9 @@ projector_sparse = FanBeamProjector(projections=100, detector_bins=900, device=d
 sino_sparse = projector_sparse.forward(img)
 fbp_sparse = projector_sparse.FBP(sino_sparse)
 
-drp = DRPDenoising(projector_sparse, epochs=epochs, inner_steps=inner_steps, step_size=step_size)
+drp = DRPDenoising(
+    projector_sparse, epochs=epochs, inner_steps=inner_steps, step_size=step_size
+)
 recon_drp = drp.reconstruct(sino_sparse)
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))

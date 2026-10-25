@@ -19,8 +19,8 @@ difftomo_cuda = load(
 )
 
 difftomo_cpu = load(
-    name = "difftomo_cpu",
-    sources = [
+    name="difftomo_cpu",
+    sources=[
         str(_PROJECTOR_DIR / "Cpp_files" / "bindings_cpu.cpp"),
         str(_PROJECTOR_DIR / "Cpp_files" / "SiddonAlgorithm.cpp"),
         str(_PROJECTOR_DIR / "Cpp_files" / "ARTAlgo.cpp"),

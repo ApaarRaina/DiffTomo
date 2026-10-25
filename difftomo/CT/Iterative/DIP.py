@@ -2,10 +2,9 @@ import torch
 import torch.nn as nn
 from difftomo.CT.Models import PriorModel
 from tqdm import tqdm
- 
- 
-class DRPDenoising:
 
+
+class DRPDenoising:
     def __init__(self, projector, epochs=250, inner_steps=50, step_size=0.25, lr=5e-4):
         self.projector = projector
         self.epochs = epochs
@@ -13,7 +12,7 @@ class DRPDenoising:
         self.beta = step_size
         self.lr = lr
         self.loss = nn.MSELoss()
- 
+
     def reconstruct(self, sparse_sinogram, prior_model=None):
         device = self.projector.device
         p = sparse_sinogram.to(device)
@@ -24,11 +23,10 @@ class DRPDenoising:
             prior = prior_model
 
         optimizer = torch.optim.Adam(prior.parameters(), lr=self.lr)
- 
-        z = self.projector.FBP(p).detach()
- 
-        for epoch in tqdm(range(self.epochs)):
 
+        z = self.projector.FBP(p).detach()
+
+        for epoch in tqdm(range(self.epochs)):
             with torch.no_grad():
                 x = prior(z)
                 delta = self.projector.backward(p - self.projector.forward(x))
@@ -39,6 +37,6 @@ class DRPDenoising:
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
- 
+
         with torch.no_grad():
             return prior(z)

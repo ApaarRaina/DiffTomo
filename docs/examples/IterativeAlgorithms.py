@@ -21,7 +21,9 @@ sino_full = projector_full.forward(img)
 fbp_full = projector_full.FBP(sino_full)
 
 # ---- sparse-view setup ----
-projector_sparse = ParallelBeamProjector(projections=100, detector_bins=800, device=device)
+projector_sparse = ParallelBeamProjector(
+    projections=100, detector_bins=800, device=device
+)
 sino_sparse = projector_sparse.forward(img)
 fbp_sparse = projector_sparse.FBP(sino_sparse)
 
@@ -30,21 +32,26 @@ sirt_full = SIRT(projector_full, iterations=iterations, device=device)
 recon_sirt_full = sirt_full.reconstruct(sino_full, image_shape=img.shape)
 
 sirt_sparse = SIRT(projector_sparse, iterations=iterations, device=device)
-recon_sirt_sparse = sirt_sparse.reconstruct(sino_sparse, image_shape=img.shape,)
+recon_sirt_sparse = sirt_sparse.reconstruct(
+    sino_sparse,
+    image_shape=img.shape,
+)
 
 # TV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
 tv = TVDenoising(projector_sparse, iterations=20, lamda=0.05, device=device)
-recon_tv_sparse = tv.reconstruct(fbp_sparse)   # (sinogram, initial image) signature
+recon_tv_sparse = tv.reconstruct(fbp_sparse)  # (sinogram, initial image) signature
 
 # TGV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
 tgv = TGVDenoising(projector_sparse, iterations=20, lamda=[1, 2], device=device)
-recon_tgv_sparse = tgv.reconstruct(fbp_sparse)   # (sinogram, initial image) signature
+recon_tgv_sparse = tgv.reconstruct(fbp_sparse)  # (sinogram, initial image) signature
+
 
 # ---- plotting ----
 def to_np(t):
     return t.detach().cpu().numpy()
 
-vmin, vmax = img.min().item(), img.max().item()   # shared range for image panels
+
+vmin, vmax = img.min().item(), img.max().item()  # shared range for image panels
 
 fig, axes = plt.subplots(2, 5, figsize=(15, 9))
 fig.suptitle("Parallel Beam Geometry", fontsize=16)
@@ -112,17 +119,19 @@ recon_sirt_sparse = sirt_sparse.reconstruct(sino_sparse, image_shape=img.shape)
 
 # TV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
 tv = TVDenoising(projector_sparse, iterations=20, lamda=0.05, device=device)
-recon_tv_sparse = tv.reconstruct(fbp_sparse)   # (sinogram, initial image) signature
+recon_tv_sparse = tv.reconstruct(fbp_sparse)  # (sinogram, initial image) signature
 
 # TGV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
 tgv = TGVDenoising(projector_sparse, iterations=20, lamda=[1, 2], device=device)
-recon_tgv_sparse = tgv.reconstruct(fbp_sparse)   # (sinogram, initial image) signature
+recon_tgv_sparse = tgv.reconstruct(fbp_sparse)  # (sinogram, initial image) signature
+
 
 # ---- plotting ----
 def to_np(t):
     return t.detach().cpu().numpy()
 
-vmin, vmax = img.min().item(), img.max().item()   # shared range for image panels
+
+vmin, vmax = img.min().item(), img.max().item()  # shared range for image panels
 
 fig, axes = plt.subplots(2, 5, figsize=(15, 9))
 fig.suptitle("Fan Beam Geometry", fontsize=16)
@@ -163,7 +172,7 @@ plt.tight_layout()
 plt.show()
 
 
-#specifically for ART
+# specifically for ART
 ###########################################################################
 #                         PARALLEL BEAM GEOMETRY                          #
 ###########################################################################
@@ -177,23 +186,24 @@ sinogram = projector.forward(img)
 fbp_img = projector.FBP(sinogram)
 
 sinogram = sinogram.to("cpu")
-art_recon = ART(projector, iterations=10).reconstruct(sinogram, image_shape=(200, 200), iterations=10)
+art_recon = ART(projector, iterations=10).reconstruct(
+    sinogram, image_shape=(200, 200), iterations=10
+)
 
-plt.figure(figsize=(10,10))
-plt.subplot(1,3,1)
-plt.imshow(img.cpu().numpy(), cmap='gray')
-plt.title('Original Image') 
+plt.figure(figsize=(10, 10))
+plt.subplot(1, 3, 1)
+plt.imshow(img.cpu().numpy(), cmap="gray")
+plt.title("Original Image")
 
-plt.subplot(1,3,2)
-plt.imshow(fbp_img.squeeze(0).squeeze(0).cpu().numpy(), cmap='gray')
-plt.title('FBP Reconstructed Image') 
+plt.subplot(1, 3, 2)
+plt.imshow(fbp_img.squeeze(0).squeeze(0).cpu().numpy(), cmap="gray")
+plt.title("FBP Reconstructed Image")
 
-plt.subplot(1,3,3)
-plt.imshow(art_recon.squeeze(0).squeeze(0).cpu().detach().numpy(), cmap='gray')
-plt.title('ART Reconstruction') 
+plt.subplot(1, 3, 3)
+plt.imshow(art_recon.squeeze(0).squeeze(0).cpu().detach().numpy(), cmap="gray")
+plt.title("ART Reconstruction")
 
 plt.show()
-
 
 
 ###########################################################################
@@ -212,17 +222,17 @@ fbp_img = projector.FBP(sinogram)
 sinogram = sinogram.to("cpu")
 art_recon = ART(projector, iterations=10).reconstruct(sinogram, image_shape=(200, 200))
 
-plt.figure(figsize=(10,10))
-plt.subplot(1,3,1)
-plt.imshow(img.cpu().numpy(), cmap='gray')
-plt.title('Original Image') 
+plt.figure(figsize=(10, 10))
+plt.subplot(1, 3, 1)
+plt.imshow(img.cpu().numpy(), cmap="gray")
+plt.title("Original Image")
 
-plt.subplot(1,3,2)
-plt.imshow(fbp_img.squeeze(0).squeeze(0).cpu().numpy(), cmap='gray')
-plt.title('FBP Reconstructed Image') 
+plt.subplot(1, 3, 2)
+plt.imshow(fbp_img.squeeze(0).squeeze(0).cpu().numpy(), cmap="gray")
+plt.title("FBP Reconstructed Image")
 
-plt.subplot(1,3,3)
-plt.imshow(art_recon.squeeze(0).squeeze(0).cpu().detach().numpy(), cmap='gray')
-plt.title('ART Reconstruction') 
+plt.subplot(1, 3, 3)
+plt.imshow(art_recon.squeeze(0).squeeze(0).cpu().detach().numpy(), cmap="gray")
+plt.title("ART Reconstruction")
 
 plt.show()

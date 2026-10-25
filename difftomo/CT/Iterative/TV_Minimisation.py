@@ -3,8 +3,11 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 import math
 
+
 class TVDenoising:
-    def __init__(self, projector, image_shape=None, iterations=10, lamda=0.1, device="cpu"):
+    def __init__(
+        self, projector, image_shape=None, iterations=10, lamda=0.1, device="cpu"
+    ):
         self.projector = projector
         self.iterations = iterations
         self.device = device
@@ -16,12 +19,12 @@ class TVDenoising:
             self.image_shape = (self.projector.detectors, self.projector.detectors)
 
     def sobel_filter(self, image):
-        sobel_x = torch.tensor([[1, 0, -1],
-                                 [2, 0, -2],
-                                 [1, 0, -1]], dtype=torch.float32).to(self.device)
-        sobel_y = torch.tensor([[1, 2, 1],
-                                 [0, 0, 0],
-                                 [-1, -2, -1]], dtype=torch.float32).to(self.device)
+        sobel_x = torch.tensor(
+            [[1, 0, -1], [2, 0, -2], [1, 0, -1]], dtype=torch.float32
+        ).to(self.device)
+        sobel_y = torch.tensor(
+            [[1, 2, 1], [0, 0, 0], [-1, -2, -1]], dtype=torch.float32
+        ).to(self.device)
 
         sobel_x = sobel_x.view(1, 1, 3, 3)
         sobel_y = sobel_y.view(1, 1, 3, 3)
@@ -38,14 +41,14 @@ class TVDenoising:
         projected_img = self.projector.forward(noisy_img)
 
         for _ in range(self.iterations):
-            D_f = torch.mean((projected_img - self.projector.forward(image))**2)
+            D_f = torch.mean((projected_img - self.projector.forward(image)) ** 2)
             R_x = torch.sum(torch.abs(self.sobel_filter(image)))
             l = D_f + self.lam * R_x
             l.backward()
             with torch.no_grad():
                 image -= self.lr * image.grad
             image.grad.zero_()
-        
+
         return image
 
 
@@ -69,7 +72,19 @@ class TGVDenoising:
     This is equivalent to using alpha * L^2 in the un-normalized problem.
     """
 
-    def __init__(self, projector, image_shape=None, iterations=300, lamda=None, device="cpu", tau=None, sigma=None, theta=1.0, normalize=True, verbose=False):
+    def __init__(
+        self,
+        projector,
+        image_shape=None,
+        iterations=300,
+        lamda=None,
+        device="cpu",
+        tau=None,
+        sigma=None,
+        theta=1.0,
+        normalize=True,
+        verbose=False,
+    ):
         self.projector = projector
         self.image_shape = image_shape
         self.iterations = iterations
@@ -197,9 +212,7 @@ class TGVDenoising:
         p = self.grad(u) - w
         q = self.epsilon(w)
 
-        norm_K = torch.sqrt(
-            torch.sum(r * r) + torch.sum(p * p) + torch.sum(q * q)
-        )
+        norm_K = torch.sqrt(torch.sum(r * r) + torch.sum(p * p) + torch.sum(q * q))
         return norm_K.item()
 
     @torch.no_grad()
@@ -207,9 +220,7 @@ class TGVDenoising:
         noisy_img = noisy_img.to(self.device, dtype=torch.float32)
 
         # Normalize the projector so alpha1/alpha2 are image-scale weights
-        self.L = (
-            self.estimate_A_norm(noisy_img.shape) if self.normalize else 1.0
-        )
+        self.L = self.estimate_A_norm(noisy_img.shape) if self.normalize else 1.0
 
         # noisy_img is an image; its (normalized) projections are the
         # data-fidelity target.
@@ -232,9 +243,7 @@ class TGVDenoising:
         else:
             tau, sigma = self.tau, self.sigma
             if tau * sigma * norm_K**2 >= 1:
-                raise ValueError(
-                    "Step sizes violate tau * sigma * ||K||^2 < 1."
-                )
+                raise ValueError("Step sizes violate tau * sigma * ||K||^2 < 1.")
 
         if self.verbose:
             print(

@@ -1,5 +1,10 @@
 import torch
-from ._extensions import forward_siddon, backward_siddon, forward_siddon_cpu, backward_siddon_cpu
+from ._extensions import (
+    forward_siddon,
+    backward_siddon,
+    forward_siddon_cpu,
+    backward_siddon_cpu,
+)
 import math
 import warnings
 
@@ -15,13 +20,13 @@ class _ParallelBeamFunction(torch.autograd.Function):
         coverage,
         distance,
         workers=16,
-        device='cuda',
+        device="cuda",
     ):
-        ctx.type = 'p'
+        ctx.type = "p"
         ctx.device = device
         ctx.workers = workers
         # CUDA A
-        if device == 'cuda':
+        if device == "cuda":
             sinogram = forward_siddon(
                 image,
                 projections,
@@ -29,7 +34,7 @@ class _ParallelBeamFunction(torch.autograd.Function):
                 detector_spacing,
                 coverage,
                 distance,
-                ctx.type
+                ctx.type,
             )
         else:
             sinogram = forward_siddon_cpu(
@@ -40,7 +45,7 @@ class _ParallelBeamFunction(torch.autograd.Function):
                 coverage,
                 distance,
                 ctx.type,
-                ctx.workers
+                ctx.workers,
             )
 
         # Save what we need to perform A^T later
@@ -56,7 +61,7 @@ class _ParallelBeamFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_sinogram):
         # CUDA A^T
-        if ctx.device == 'cuda':
+        if ctx.device == "cuda":
             grad_image = backward_siddon(
                 grad_sinogram,
                 ctx.image_shape,
@@ -65,7 +70,7 @@ class _ParallelBeamFunction(torch.autograd.Function):
                 ctx.detector_spacing,
                 ctx.coverage,
                 ctx.distance,
-                ctx.type
+                ctx.type,
             )
         else:
             grad_image = backward_siddon_cpu(
@@ -77,9 +82,8 @@ class _ParallelBeamFunction(torch.autograd.Function):
                 ctx.coverage,
                 ctx.distance,
                 ctx.type,
-                ctx.workers
+                ctx.workers,
             )
-
 
         # Gradients corresponding to the inputs of forward()
         return (
@@ -93,6 +97,7 @@ class _ParallelBeamFunction(torch.autograd.Function):
             None,  # device
         )
 
+
 class _FBPFunction(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -104,14 +109,14 @@ class _FBPFunction(torch.autograd.Function):
         detector_spacing,
         coverage,
         distance,
-        workers = 16,
-        device='cuda',
+        workers=16,
+        device="cuda",
     ):
-        ctx.type = 'p'
+        ctx.type = "p"
         ctx.workers = workers
         ctx.device = device
         # CUDA A^T
-        if ctx.device == 'cuda':
+        if ctx.device == "cuda":
             recon_image = backward_siddon(
                 sinogram,
                 image_shape,
@@ -120,9 +125,9 @@ class _FBPFunction(torch.autograd.Function):
                 detector_spacing,
                 coverage,
                 distance,
-                ctx.type
+                ctx.type,
             )
-        elif ctx.device == 'cpu':
+        elif ctx.device == "cpu":
             recon_image = backward_siddon_cpu(
                 sinogram,
                 image_shape,
@@ -132,7 +137,7 @@ class _FBPFunction(torch.autograd.Function):
                 coverage,
                 distance,
                 ctx.type,
-                ctx.workers
+                ctx.workers,
             )
 
         # Save what we need to perform A^T later
@@ -148,7 +153,7 @@ class _FBPFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_recon_image):
         # CUDA A
-        if ctx.device == 'cuda':
+        if ctx.device == "cuda":
             grad_sinogram = forward_siddon(
                 grad_recon_image.contiguous(),
                 ctx.projections,
@@ -158,7 +163,7 @@ class _FBPFunction(torch.autograd.Function):
                 ctx.distance,
                 ctx.type,
             )
-        elif ctx.device == 'cpu':
+        elif ctx.device == "cpu":
             grad_sinogram = forward_siddon_cpu(
                 grad_recon_image.contiguous(),
                 ctx.projections,
@@ -167,7 +172,7 @@ class _FBPFunction(torch.autograd.Function):
                 ctx.coverage,
                 ctx.distance,
                 ctx.type,
-                ctx.workers
+                ctx.workers,
             )
 
         # Gradients corresponding to the inputs of forward()
@@ -203,7 +208,7 @@ class ParallelBeamProjector:
         self.type = type
         self.device = device
         self.workers = workers
-        self.mode='p'
+        self.mode = "p"
 
     def forward(self, image):
         self.image_shape = image.shape
@@ -211,13 +216,12 @@ class ParallelBeamProjector:
         if image.device.type != self.device:
             ValueError(f"Image not on device: {self.device}. ")
 
-
         if len(self.image_shape) == 2:
             warnings.warn(
                 "Image dimension contains only height and width. "
                 "Expected (batch, channels, height, width). "
                 "Automatically reshaping to (1, 1, height, width).",
-                UserWarning
+                UserWarning,
             )
             self.image_shape = (1, 1, *self.image_shape)
             image = image.unsqueeze(0).unsqueeze(0)
@@ -227,14 +231,16 @@ class ParallelBeamProjector:
                 "Image dimension contains three dimensions. "
                 "Expected (batch, channels, height, width). "
                 "Automatically reshaping to (1, channels, height, width).",
-                UserWarning
+                UserWarning,
             )
             self.image_shape = (1, *self.image_shape)
             image = image.unsqueeze(0)
 
         elif len(self.image_shape) > 4:
-            raise ValueError(f"Image dimension is greater than 4, expected 4 dimensions (batch, channels, height, width).")
-        
+            raise ValueError(
+                f"Image dimension is greater than 4, expected 4 dimensions (batch, channels, height, width)."
+            )
+
         if self.type == "line":
             return _ParallelBeamFunction.apply(
                 image,
@@ -256,13 +262,12 @@ class ParallelBeamProjector:
         if sinogram.device.type != self.device:
             ValueError(f"Image not on device: {self.device}. ")
 
-
         if len(sinogram_shape) == 2:
             warnings.warn(
                 "Image dimension contains only height and width. "
                 "Expected (batch, channels, height, width). "
                 "Automatically reshaping to (1, 1, height, width).",
-                UserWarning
+                UserWarning,
             )
             sinogram = sinogram.unsqueeze(0).unsqueeze(0)
 
@@ -271,12 +276,14 @@ class ParallelBeamProjector:
                 "Image dimension contains three dimensions. "
                 "Expected (batch, channels, height, width). "
                 "Automatically reshaping to (1, channels, height, width).",
-                UserWarning
+                UserWarning,
             )
             sinogram = sinogram.unsqueeze(0)
 
         elif len(sinogram_shape) > 4:
-            raise ValueError(f"Sinogram dimension is greater than 4, expected 4 dimensions (batch, channels, height, width).")
+            raise ValueError(
+                f"Sinogram dimension is greater than 4, expected 4 dimensions (batch, channels, height, width)."
+            )
 
         batches = sinogram_shape[0]
 
@@ -287,7 +294,7 @@ class ParallelBeamProjector:
                     "Image dimension contains only height and width. "
                     "Expected (batch, channels, height, width). "
                     "Automatically reshaping to (1, 1, height, width).",
-                    UserWarning
+                    UserWarning,
                 )
                 self.image_shape = (batches, 1, *self.image_shape)
 
@@ -296,18 +303,20 @@ class ParallelBeamProjector:
                     "Image dimension contains three dimensions. "
                     "Expected (batch, channels, height, width). "
                     "Automatically reshaping to (1, channels, height, width).",
-                    UserWarning
+                    UserWarning,
                 )
                 self.image_shape = (batches, *self.image_shape)
 
             elif len(self.image_shape) > 4:
-                raise ValueError(f"Image dimension is greater than 4, expected 4 dimensions (batch, channels, height, width).")
-        
+                raise ValueError(
+                    f"Image dimension is greater than 4, expected 4 dimensions (batch, channels, height, width)."
+                )
+
         elif not hasattr(self, "image_shape"):
-            self.image_shape = (batches, 1, 512, 512) # default image shape
+            self.image_shape = (batches, 1, 512, 512)  # default image shape
             raise warnings.warn(
                 "Image shape must be provided for backward operation. Will use the default image shape (1x1x512x512).",
-                UserWarning
+                UserWarning,
             )
         if sinogram.shape[2] != self.projections or sinogram.shape[3] != self.detectors:
             raise ValueError(
@@ -316,7 +325,7 @@ class ParallelBeamProjector:
             )
 
         if self.type == "line":
-            if self.device == 'cuda':
+            if self.device == "cuda":
                 return backward_siddon(
                     sinogram,
                     self.image_shape,
@@ -325,8 +334,7 @@ class ParallelBeamProjector:
                     self.detector_spacing,
                     self.coverage,
                     self.distance,
-                    self.mode
-
+                    self.mode,
                 )
             else:
                 return backward_siddon_cpu(
@@ -338,7 +346,7 @@ class ParallelBeamProjector:
                     self.coverage,
                     self.distance,
                     self.mode,
-                    self.workers
+                    self.workers,
                 )
 
         raise ValueError(f"Unknown projector type: {self.type}")
@@ -356,13 +364,12 @@ class ParallelBeamProjector:
         if sinogram.device.type != self.device:
             ValueError(f"Image not on device: {self.device}. ")
 
-
         if len(sinogram_shape) == 2:
             warnings.warn(
                 "Image dimension contains only height and width. "
                 "Expected (batch, channels, height, width). "
                 "Automatically reshaping to (1, 1, height, width).",
-                UserWarning
+                UserWarning,
             )
             sinogram = sinogram.unsqueeze(0).unsqueeze(0)
 
@@ -371,15 +378,17 @@ class ParallelBeamProjector:
                 "Image dimension contains three dimensions. "
                 "Expected (batch, channels, height, width). "
                 "Automatically reshaping to (1, channels, height, width).",
-                UserWarning
+                UserWarning,
             )
             sinogram = sinogram.unsqueeze(0)
 
         elif len(sinogram_shape) > 4:
-            raise ValueError(f"Sinogram dimension is greater than 4, expected 4 dimensions (batch, channels, height, width).")
+            raise ValueError(
+                f"Sinogram dimension is greater than 4, expected 4 dimensions (batch, channels, height, width)."
+            )
 
         batches = sinogram.shape[0]
-        
+
         if image_shape is not None:
             self.image_shape = image_shape
             if len(self.image_shape) == 2:
@@ -387,7 +396,7 @@ class ParallelBeamProjector:
                     "Image dimension contains only height and width. "
                     "Expected (batch, channels, height, width). "
                     "Automatically reshaping to (1, 1, height, width).",
-                    UserWarning
+                    UserWarning,
                 )
                 self.image_shape = (batches, 1, *self.image_shape)
 
@@ -396,14 +405,15 @@ class ParallelBeamProjector:
                     "Image dimension contains three dimensions. "
                     "Expected (batch, channels, height, width). "
                     "Automatically reshaping to (1, channels, height, width).",
-                    UserWarning
+                    UserWarning,
                 )
                 self.image_shape = (batches, *self.image_shape)
 
             elif len(self.image_shape) > 4:
-                raise ValueError(f"Image dimension is greater than 4, expected 4 dimensions (batch, channels, height, width).")
+                raise ValueError(
+                    f"Image dimension is greater than 4, expected 4 dimensions (batch, channels, height, width)."
+                )
 
-        
         if sinogram.shape[2] != self.projections or sinogram.shape[3] != self.detectors:
             raise ValueError(
                 f"Sinogram shape {sinogram.shape} does not match projector configuration "
@@ -419,37 +429,46 @@ class ParallelBeamProjector:
         pad_len = max(64, 2 ** int(torch.ceil(torch.log2(torch.tensor(2 * n)))))
         scale = torch.tensor(torch.pi / (self.projections)).to(self.device)
 
-        freqs = torch.fft.fftfreq(pad_len, d=float(self.detector_spacing)).to(sinogram.device)
+        freqs = torch.fft.fftfreq(pad_len, d=float(self.detector_spacing)).to(
+            sinogram.device
+        )
         filt = torch.abs(freqs)
         f_max = 1.0 / (2.0 * float(self.detector_spacing))
         x = filt / f_max
 
         if filter_type == "shepp-logan":
-            filt = filt * self._sinc(x / 2)            
+            filt = filt * self._sinc(x / 2)
         elif filter_type == "cosine":
             filt = filt * torch.cos(torch.pi * x / 2)
         elif filter_type == "hamming":
             filt = filt * (0.54 + 0.46 * torch.cos(torch.pi * x))
         elif filter_type == "hann":
             filt = filt * 0.5 * (1 + torch.cos(torch.pi * x))
-    
+
         if self.type == "line":
             sino_padded = torch.nn.functional.pad(sinogram, (0, pad_len - n))
             F_Rf = torch.fft.fft(sino_padded, dim=3).to(self.device)
             F_Rf_filtered = F_Rf * filt[None, :].to(self.device)
-            Rf_filtered = torch.fft.ifft(F_Rf_filtered, dim=3).real[:, :, : , :n].contiguous().to(self.device)
+            Rf_filtered = (
+                torch.fft.ifft(F_Rf_filtered, dim=3)
+                .real[:, :, :, :n]
+                .contiguous()
+                .to(self.device)
+            )
 
-            return _FBPFunction.apply(
-                Rf_filtered,
-                self.image_shape,
-                self.projections,
-                self.detectors,
-                self.detector_spacing,
-                self.coverage,
-                self.distance,
-                self.workers,
-                self.device
-            ) * scale
+            return (
+                _FBPFunction.apply(
+                    Rf_filtered,
+                    self.image_shape,
+                    self.projections,
+                    self.detectors,
+                    self.detector_spacing,
+                    self.coverage,
+                    self.distance,
+                    self.workers,
+                    self.device,
+                )
+                * scale
+            )
 
         raise ValueError(f"Unknown projector type: {self.type}")
-    

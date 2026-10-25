@@ -29,8 +29,13 @@ def test_redcnn_weights(load_pretrained):
     A, B, random = torch.tensor(A[0]), torch.tensor(B[0]), torch.tensor(random[0])
 
     if load_pretrained:
-        assert torch.allclose(A, B, atol=1e-6), "Weights should be equal when loading pretrained model."
-        assert not torch.allclose(A, random, atol=1e-6), "Weights should not be equal to random model when loading pretrained model."
+        assert torch.allclose(A, B, atol=1e-6), (
+            "Weights should be equal when loading pretrained model."
+        )
+        assert not torch.allclose(A, random, atol=1e-6), (
+            "Weights should not be equal to random model when loading pretrained model."
+        )
+
 
 @pytest.mark.parametrize("load_pretrained", [True])
 def test_reconstructor_weights(load_pretrained):
@@ -49,7 +54,7 @@ def test_reconstructor_weights(load_pretrained):
         load_pretrained=load_pretrained,
         device="cpu",
     )
-    
+
     B = model_B.Image_recon_module.conv_first.weight.detach()
 
     model_random = Reconstructor(
@@ -62,5 +67,9 @@ def test_reconstructor_weights(load_pretrained):
     random = model_random.Image_recon_module.conv_first.weight.detach()
 
     if load_pretrained:
-        assert torch.allclose(A, B, atol=1e-6), "Weights should be equal when loading pretrained model."
-        assert not torch.allclose(A, random, atol=1e-6), "Weights should not be equal to random model when loading pretrained model."
+        assert torch.allclose(A, B, atol=1e-6), (
+            "Weights should be equal when loading pretrained model."
+        )
+        assert not torch.allclose(A, random, atol=1e-6), (
+            "Weights should not be equal to random model when loading pretrained model."
+        )
