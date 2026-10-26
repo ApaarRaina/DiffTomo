@@ -26,27 +26,40 @@ class TVDenoising:
             [[1, 2, 1], [0, 0, 0], [-1, -2, -1]], dtype=torch.float32
         ).to(self.device)
 
-        sobel_x = sobel_x.view(1, 1, 3, 3)
-        sobel_y = sobel_y.view(1, 1, 3, 3)
+        channels = image.shape[1]
+        sobel_x = sobel_x.view(1, 1, 3, 3).repeat(channels, 1, 1, 1)
+        sobel_y = sobel_y.view(1, 1, 3, 3).repeat(channels, 1, 1, 1)
 
-        grad_x = nn.functional.conv2d(image.unsqueeze(0), sobel_x, padding=1)
-        grad_y = nn.functional.conv2d(image.unsqueeze(0), sobel_y, padding=1)
+        grad_x = nn.functional.conv2d(image, sobel_x, padding=1, groups=channels)
+        grad_y = nn.functional.conv2d(image, sobel_y, padding=1, groups=channels)
 
         return torch.sqrt(grad_x**2 + grad_y**2 + 1e-6)
 
     def reconstruct(self, noisy_img):
         noisy_img = noisy_img.to(self.device)
-        image = noisy_img.clone().to(self.device)
-        image.requires_grad_(True)
+
+        if len(noisy_img.shape) == 2:
+            noisy_img = noisy_img.unsqueeze(0).unsqueeze(0)
+        elif len(noisy_img.shape) == 3:
+            noisy_img = noisy_img.unsqueeze(0)
+        elif len(noisy_img.shape) != 4:
+            raise ValueError("Invalid image shape. Expected 2D, 3D, or 4D tensor.")
+
+        image = noisy_img.clone().detach().requires_grad_(True)
         projected_img = self.projector.forward(noisy_img)
 
         for _ in range(self.iterations):
-            D_f = torch.mean((projected_img - self.projector.forward(image)) ** 2)
-            R_x = torch.sum(torch.abs(self.sobel_filter(image)))
-            l = D_f + self.lam * R_x
+            projected = self.projector.forward(image)
+
+            D_f = (projected_img - projected).square().flatten(1).mean(dim=1)
+            R_x = self.sobel_filter(image).flatten(1).sum(dim=1)
+
+            l = (D_f + self.lam * R_x).mean()
             l.backward()
+
             with torch.no_grad():
                 image -= self.lr * image.grad
+
             image.grad.zero_()
 
         return image
@@ -56,20 +69,13 @@ class TGVDenoising:
     """
     Second-order TGV using the Chambolle-Pock primal-dual algorithm.
 
-    Objective (with A replaced by the normalized operator A/L, L = ||A||):
+    Objective:
         min_{u,w} 0.5 * ||A(u)/L - b/L||^2
                    + alpha1 * ||grad(u) - w||_{1,2}
                    + alpha2 * ||E(w)||_{1,F}
 
-    w: 2-channel vector field
-    E(w): symmetric gradient, with the off-diagonal component scaled by
-          1/sqrt(2) so its Euclidean norm equals the Frobenius norm.
-
     Assumes projector.forward(x) computes A(x) and
     projector.backward(y) computes the adjoint A^T(y).
-
-    Note: because A is normalized, alpha1/alpha2 are image-scale weights.
-    This is equivalent to using alpha * L^2 in the un-normalized problem.
     """
 
     def __init__(
@@ -93,7 +99,6 @@ class TGVDenoising:
         self.normalize = normalize
         self.verbose = verbose
 
-        # lamda = [alpha1, alpha2]
         if lamda is None:
             self.alpha1, self.alpha2 = 0.1, 0.1
         elif isinstance(lamda, (int, float)):
@@ -103,8 +108,7 @@ class TGVDenoising:
 
         self.tau = tau
         self.sigma = sigma
-
-        self.L = 1.0  # operator norm of A, set in reconstruct()
+        self.L = 1.0
 
     def _A(self, x):
         return self.projector.forward(x) / self.L
@@ -141,54 +145,58 @@ class TGVDenoising:
         return out
 
     def grad(self, u):
-        # Shape: [2, H, W]
-        return torch.stack((self.Dx(u), self.Dy(u)), dim=0)
+        return torch.stack((self.Dx(u), self.Dy(u)), dim=1)
 
     def grad_adjoint(self, p):
-        return self.DxT(p[0]) + self.DyT(p[1])
+        return self.DxT(p[:, 0]) + self.DyT(p[:, 1])
 
     def epsilon(self, w):
-        wx, wy = w[0], w[1]
+        wx, wy = w[:, 0], w[:, 1]
 
         e_xx = self.Dx(wx)
         e_yy = self.Dy(wy)
         e_xy = (self.Dy(wx) + self.Dx(wy)) / math.sqrt(2.0)
 
-        # Shape: [3, H, W]
-        return torch.stack((e_xx, e_yy, e_xy), dim=0)
+        return torch.stack((e_xx, e_yy, e_xy), dim=1)
 
     def epsilon_adjoint(self, q):
-        q_xx, q_yy, q_xy = q[0], q[1], q[2]
+        q_xx, q_yy, q_xy = q[:, 0], q[:, 1], q[:, 2]
         inv_sqrt2 = 1.0 / math.sqrt(2.0)
 
         wx = self.DxT(q_xx) + inv_sqrt2 * self.DyT(q_xy)
         wy = self.DyT(q_yy) + inv_sqrt2 * self.DxT(q_xy)
 
-        return torch.stack((wx, wy), dim=0)
+        return torch.stack((wx, wy), dim=1)
 
     @staticmethod
     def project_ball(x, radius):
-        norm = torch.sqrt(torch.sum(x * x, dim=0, keepdim=True))
+        norm = torch.sqrt(torch.sum(x * x, dim=1, keepdim=True))
         scale = torch.clamp(norm / radius, min=1.0)
         return x / scale
 
     @torch.no_grad()
     def estimate_A_norm(self, image_shape, n_iter=30):
+        image_shape = (1, *image_shape[1:])
         u = torch.randn(image_shape, device=self.device, dtype=torch.float32)
         u = u / torch.linalg.norm(u)
 
         eig = 1.0
         for _ in range(n_iter):
             v = self.projector.backward(self.projector.forward(u))
-            eig = torch.linalg.norm(v).clamp_min(1e-12)  # ~ ||A||^2
+            eig = torch.linalg.norm(v).clamp_min(1e-12)
             u = v / eig
 
         return torch.sqrt(eig).item()
 
     @torch.no_grad()
     def estimate_operator_norm(self, image_shape, n_iter=30):
+        image_shape = (1, *image_shape[1:])
         u = torch.randn(image_shape, device=self.device, dtype=torch.float32)
-        w = torch.randn((2, *image_shape), device=self.device, dtype=u.dtype)
+        w = torch.randn(
+            (u.shape[0], 2, *u.shape[1:]),
+            device=self.device,
+            dtype=u.dtype,
+        )
 
         norm = torch.sqrt(torch.sum(u * u) + torch.sum(w * w))
         u, w = u / norm, w / norm
@@ -198,7 +206,6 @@ class TGVDenoising:
             p = self.grad(u) - w
             q = self.epsilon(w)
 
-            # K^T K (u, w) = K^*(r, p, q)
             u_next = self._AT(r) + self.grad_adjoint(p)
             w_next = -p + self.epsilon_adjoint(q)
 
@@ -219,23 +226,32 @@ class TGVDenoising:
     def reconstruct(self, noisy_img):
         noisy_img = noisy_img.to(self.device, dtype=torch.float32)
 
-        # Normalize the projector so alpha1/alpha2 are image-scale weights
+        if noisy_img.ndim == 2:
+            noisy_img = noisy_img.unsqueeze(0).unsqueeze(0)
+        elif noisy_img.ndim == 3:
+            noisy_img = noisy_img.unsqueeze(0)
+        elif noisy_img.ndim != 4:
+            raise ValueError("Invalid image shape. Expected 2D, 3D, or 4D tensor.")
+
         self.L = self.estimate_A_norm(noisy_img.shape) if self.normalize else 1.0
 
-        # noisy_img is an image; its (normalized) projections are the
-        # data-fidelity target.
         b = self._A(noisy_img)
 
         u = noisy_img.clone()
-        w = torch.zeros((2, *u.shape), device=self.device, dtype=u.dtype)
+        w = torch.zeros(
+            (u.shape[0], 2, *u.shape[1:]),
+            device=self.device,
+            dtype=u.dtype,
+        )
 
-        # Dual variables: data term, first-order TGV, second-order TGV
         r = torch.zeros_like(b)
         p = torch.zeros_like(w)
-        q = torch.zeros((3, *u.shape), device=self.device, dtype=u.dtype)
+        q = torch.zeros(
+            (u.shape[0], 3, *u.shape[1:]),
+            device=self.device,
+            dtype=u.dtype,
+        )
 
-        # Step sizes satisfying tau*sigma*||K||^2 < 1.
-        # Power iteration underestimates ||K||, so add a 5% margin.
         norm_K = 1.05 * self.estimate_operator_norm(u.shape)
         if self.tau is None or self.sigma is None:
             step = 0.95 / max(norm_K, 1e-8)
@@ -255,36 +271,29 @@ class TGVDenoising:
         w_bar = w.clone()
 
         for it in range(self.iterations):
-            # 1. Data dual update:
-            # prox_{sigma F*}(r + sigma*(A(u_bar) - b)), F(z)=0.5||z-b||^2
             r = (r + sigma * (self._A(u_bar) - b)) / (1.0 + sigma)
 
-            # 2. First-order TGV dual update
             p = p + sigma * (self.grad(u_bar) - w_bar)
             p = self.project_ball(p, self.alpha1)
 
-            # 3. Second-order TGV dual update
             q = q + sigma * self.epsilon(w_bar)
             q = self.project_ball(q, self.alpha2)
 
-            # 4. Primal image update
             u_old = u
             w_old = w
 
             u = u - tau * (self._AT(r) + self.grad_adjoint(p))
-
-            # 5. Primal auxiliary-field update
             w = w + tau * p - tau * self.epsilon_adjoint(q)
 
-            # 6. Extrapolation
             u_bar = u + self.theta * (u - u_old)
             w_bar = w + self.theta * (w - w_old)
 
             if self.verbose and (it % 10 == 0 or it == self.iterations - 1):
-                p_sat = (p.norm(dim=0).max() / self.alpha1).item()
-                q_sat = (q.norm(dim=0).max() / self.alpha2).item()
+                p_sat = (p.norm(dim=1).max() / self.alpha1).item()
+                q_sat = (q.norm(dim=1).max() / self.alpha2).item()
                 print(
-                    f"[TGV] it={it:4d}  ||u-u0||={torch.linalg.norm(u - noisy_img).item():.4f}  "
+                    f"[TGV] it={it:4d}  "
+                    f"||u-u0||={torch.linalg.norm(u - noisy_img).item():.4f}  "
                     f"p/alpha1={p_sat:.3f}  q/alpha2={q_sat:.3f}"
                 )
 

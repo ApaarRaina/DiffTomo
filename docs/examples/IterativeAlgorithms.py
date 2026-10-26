@@ -1,4 +1,4 @@
-from difftomo.CT.Iterative import SIRT, ART, TVDenoising, TGVDenoising
+from difftomo.CT.Iterative import SIRT, ART, TVDenoising, TGVDenoising, SART
 import torch
 import matplotlib.pyplot as plt
 from difftomo.data import SheppLogan
@@ -37,6 +37,15 @@ recon_sirt_sparse = sirt_sparse.reconstruct(
     image_shape=img.shape,
 )
 
+sart_full = SART(projector_full, iterations=iterations, device=device)
+recon_sart_full = sart_full.reconstruct(sino_full, image_shape=img.shape)
+
+sart_sparse = SART(projector_sparse, iterations=iterations, device=device)
+recon_sart_sparse = sart_sparse.reconstruct(
+    sino_sparse,
+    image_shape=img.shape,
+)
+
 # TV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
 tv = TVDenoising(projector_sparse, iterations=20, lamda=0.05, device=device)
 recon_tv_sparse = tv.reconstruct(fbp_sparse)  # (sinogram, initial image) signature
@@ -48,12 +57,12 @@ recon_tgv_sparse = tgv.reconstruct(fbp_sparse)  # (sinogram, initial image) sign
 
 # ---- plotting ----
 def to_np(t):
-    return t.detach().cpu().numpy()
+    return t.squeeze(0).squeeze(0).detach().cpu().numpy()
 
 
 vmin, vmax = img.min().item(), img.max().item()  # shared range for image panels
 
-fig, axes = plt.subplots(2, 5, figsize=(15, 9))
+fig, axes = plt.subplots(2, 6, figsize=(15, 9))
 fig.suptitle("Parallel Beam Geometry", fontsize=16)
 
 # Row 1: full-view (800 projections)
@@ -66,8 +75,11 @@ axes[0, 1].set_title(f"FBP, full-view")
 axes[0, 2].imshow(to_np(recon_sirt_full), cmap="gray")
 axes[0, 2].set_title(f"SIRT, full-view ({iterations} it.)")
 
-axes[0, 3].imshow(to_np(img), cmap="gray")
-axes[0, 3].set_title("Ground truth")
+axes[0, 3].imshow(to_np(recon_sart_full), cmap="gray")
+axes[0, 3].set_title(f"SART, full-view ({iterations} it.)")
+
+axes[0, 4].imshow(to_np(img), cmap="gray")
+axes[0, 4].set_title("Ground truth")
 
 # Row 2: sparse-view (100 projections)
 axes[1, 0].imshow(to_np(sino_sparse), cmap="gray")
@@ -79,11 +91,14 @@ axes[1, 1].set_title(f"FBP, sparse-view")
 axes[1, 2].imshow(to_np(recon_sirt_sparse), cmap="gray")
 axes[1, 2].set_title(f"SIRT, sparse-view ({iterations} it.)")
 
-axes[1, 3].imshow(to_np(recon_tv_sparse), cmap="gray")
-axes[1, 3].set_title(f"TV, sparse-view ({20} it.)")
+axes[1, 3].imshow(to_np(recon_sart_sparse), cmap="gray")
+axes[1, 3].set_title(f"SART, sparse-view ({iterations} it.)")
 
-axes[1, 4].imshow(to_np(recon_tgv_sparse), cmap="gray")
-axes[1, 4].set_title(f"TGV, sparse-view ({20} it.)")
+axes[1, 4].imshow(to_np(recon_tv_sparse), cmap="gray")
+axes[1, 4].set_title(f"TV, sparse-view ({20} it.)")
+
+axes[1, 5].imshow(to_np(recon_tgv_sparse), cmap="gray")
+axes[1, 5].set_title(f"TGV, sparse-view ({20} it.)")
 
 for ax in axes.ravel():
     ax.axis("off")
@@ -117,6 +132,15 @@ recon_sirt_full = sirt_full.reconstruct(sino_full, image_shape=img.shape)
 sirt_sparse = SIRT(projector_sparse, iterations=iterations, device=device)
 recon_sirt_sparse = sirt_sparse.reconstruct(sino_sparse, image_shape=img.shape)
 
+sart_full = SART(projector_full, iterations=iterations, device=device)
+recon_sart_full = sart_full.reconstruct(sino_full, image_shape=img.shape)
+
+sart_sparse = SART(projector_sparse, iterations=iterations, device=device)
+recon_sart_sparse = sart_sparse.reconstruct(
+    sino_sparse,
+    image_shape=img.shape,
+)
+
 # TV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
 tv = TVDenoising(projector_sparse, iterations=20, lamda=0.05, device=device)
 recon_tv_sparse = tv.reconstruct(fbp_sparse)  # (sinogram, initial image) signature
@@ -126,14 +150,9 @@ tgv = TGVDenoising(projector_sparse, iterations=20, lamda=[1, 2], device=device)
 recon_tgv_sparse = tgv.reconstruct(fbp_sparse)  # (sinogram, initial image) signature
 
 
-# ---- plotting ----
-def to_np(t):
-    return t.detach().cpu().numpy()
-
-
 vmin, vmax = img.min().item(), img.max().item()  # shared range for image panels
 
-fig, axes = plt.subplots(2, 5, figsize=(15, 9))
+fig, axes = plt.subplots(2, 6, figsize=(15, 9))
 fig.suptitle("Fan Beam Geometry", fontsize=16)
 
 # Row 1: full-view (800 projections)
@@ -146,8 +165,11 @@ axes[0, 1].set_title(f"FBP, full-view")
 axes[0, 2].imshow(to_np(recon_sirt_full), cmap="gray")
 axes[0, 2].set_title(f"SIRT, full-view ({iterations} it.)")
 
-axes[0, 3].imshow(to_np(img), cmap="gray")
-axes[0, 3].set_title("Ground truth")
+axes[0, 3].imshow(to_np(recon_sart_full), cmap="gray")
+axes[0, 3].set_title(f"SART, full-view ({iterations} it.)")
+
+axes[0, 4].imshow(to_np(img), cmap="gray")
+axes[0, 4].set_title("Ground truth")
 
 # Row 2: sparse-view (100 projections)
 axes[1, 0].imshow(to_np(sino_sparse), cmap="gray")
@@ -159,11 +181,14 @@ axes[1, 1].set_title(f"FBP, sparse-view")
 axes[1, 2].imshow(to_np(recon_sirt_sparse), cmap="gray")
 axes[1, 2].set_title(f"SIRT, sparse-view ({iterations} it.)")
 
-axes[1, 3].imshow(to_np(recon_tv_sparse), cmap="gray")
-axes[1, 3].set_title(f"TV, sparse-view ({20} it.)")
+axes[1, 3].imshow(to_np(recon_sart_sparse), cmap="gray")
+axes[1, 3].set_title(f"SART, sparse-view ({iterations} it.)")
 
-axes[1, 4].imshow(to_np(recon_tgv_sparse), cmap="gray")
-axes[1, 4].set_title(f"TGV, sparse-view ({20} it.)")
+axes[1, 4].imshow(to_np(recon_tv_sparse), cmap="gray")
+axes[1, 4].set_title(f"TV, sparse-view ({20} it.)")
+
+axes[1, 5].imshow(to_np(recon_tgv_sparse), cmap="gray")
+axes[1, 5].set_title(f"TGV, sparse-view ({20} it.)")
 
 for ax in axes.ravel():
     ax.axis("off")
@@ -186,9 +211,7 @@ sinogram = projector.forward(img)
 fbp_img = projector.FBP(sinogram)
 
 sinogram = sinogram.to("cpu")
-art_recon = ART(projector, iterations=10).reconstruct(
-    sinogram, image_shape=(200, 200), iterations=10
-)
+art_recon = ART(projector, iterations=10).reconstruct(sinogram, image_shape=(200, 200))
 
 plt.figure(figsize=(10, 10))
 plt.subplot(1, 3, 1)
@@ -213,14 +236,13 @@ plt.show()
 phantom = SheppLogan()
 projector = FanBeamProjector(projections=300, detector_bins=500, device="cuda")
 img = phantom.data.to("cuda")
-print(img.shape)
 img = torch.tensor(cv.resize(img.cpu().numpy(), (200, 200)), device="cuda")
-print(img.shape)
 sinogram = projector.forward(img)
 fbp_img = projector.FBP(sinogram)
 
 sinogram = sinogram.to("cpu")
-art_recon = ART(projector, iterations=10).reconstruct(sinogram, image_shape=(200, 200))
+art = ART(projector, iterations=10)
+art_recon = art.reconstruct(sinogram, image_shape=(200, 200))
 
 plt.figure(figsize=(10, 10))
 plt.subplot(1, 3, 1)

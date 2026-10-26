@@ -13,7 +13,7 @@ device = "cuda"
 img = SheppLogan().data.to(device)
 
 # Paper: epochs=250, inner_steps=200, lr=5e-4, step_size=0.25
-epochs, inner_steps, step_size = 100, 50, 0.25
+epochs, inner_steps, step_size = 200, 100, 0.25
 
 
 ###########################################################################
@@ -21,7 +21,7 @@ epochs, inner_steps, step_size = 100, 50, 0.25
 ###########################################################################
 
 projector_sparse = ParallelBeamProjector(
-    projections=100, detector_bins=800, device=device
+    projections=100, detector_bins=900, device=device
 )
 sino_sparse = projector_sparse.forward(img)
 fbp_sparse = projector_sparse.FBP(sino_sparse)

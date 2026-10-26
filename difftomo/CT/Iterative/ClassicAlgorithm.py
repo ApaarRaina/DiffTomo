@@ -1,6 +1,6 @@
 import torch
 import warnings
-from difftomo.CT.Projector._extensions import ARTReconstruction
+from difftomo.CT._extensions import ARTReconstruction
 
 
 class ART:
@@ -34,6 +34,77 @@ class ART:
         return reconstructed_image
 
 
+class SART:
+    def __init__(self, projector, relaxation_parameter=1, iterations=10, device="cpu"):
+        self.projector = projector
+        self.relaxation_parameter = relaxation_parameter
+        self.iterations = iterations
+        self.device = device
+
+    def WAx(self, residual, image_shape):
+        U = torch.ones(image_shape, device=self.device)
+        mag_A = self.projector.forward(U)
+
+        return residual * torch.reciprocal(mag_A)
+
+    def V_inverseAT(self, residual, image_shape):
+        U = torch.ones(image_shape, device=self.device)
+        mag_A = self.projector.backward(U)
+
+        return residual * torch.reciprocal(mag_A)
+
+    def reconstruct(self, sinogram, image_shape=None):
+        if image_shape is not None:
+            if len(image_shape) > 4:
+                raise ValueError("Invalid image_shape. Expected a 4D, 3D or 2D tensor.")
+            if len(image_shape) == 3:
+                self.image_shape = (1, *image_shape)
+            if len(image_shape) == 2:
+                self.image_shape = (1, 1, *image_shape)
+            if len(image_shape) < 2:
+                raise ValueError("Invalid image_shape. Expected a 4D, 3D or 2D tensor.")
+            self.image_shape = image_shape
+        else:
+            self.image_shape = (1, 1, 512, 512)
+            warnings.warn(
+                "No image shape specified gonna take default shape of 512x512",
+                UserWarning,
+            )
+
+        if len(sinogram.shape) == 4:
+            batches, channels = sinogram.shape[0], sinogram.shape[1]
+        elif len(sinogram.shape) == 3:
+            batches, channels = 1, sinogram.shape[0]
+        elif len(sinogram.shape) == 2:
+            batches, channels = 1, 1
+        else:
+            raise ValueError("Invalid sinogram shape. Expected 2D, 3D, or 4D tensor.")
+
+        if image_shape is None:
+            self.image_shape = (
+                batches,
+                channels,
+                self.image_shape[-2],
+                self.image_shape[-1],
+            )
+
+        x_k = torch.zeros(self.image_shape, dtype=torch.float32, device=self.device)
+
+        for i in range(self.iterations):
+            residual = sinogram - self.projector.forward(x_k)
+            W_residual = self.WAx(residual, image_shape=self.image_shape)
+            ATW_residual = self.projector.backward(
+                W_residual, image_shape=self.image_shape
+            )
+            V_inverse_ATW_residual = self.V_inverseAT(
+                ATW_residual, image_shape=sinogram.shape
+            )
+
+            x_k = x_k + self.relaxation_parameter * V_inverse_ATW_residual
+
+        return x_k
+
+
 class SIRT:
     def __init__(self, projector, iterations=10, device="cpu"):
         self.projector = projector
@@ -58,9 +129,14 @@ class SIRT:
         elif len(sinogram.shape) == 2:
             batches, channels = 1, 1
         else:
-            ValueError("Invalid sinogram shape. Expected 2D, 3D, or 4D tensor.")
+            raise ValueError("Invalid sinogram shape. Expected 2D, 3D, or 4D tensor.")
 
-        self.image_shape = (batches, channels, self.image_shape[0], self.image_shape[1])
+        self.image_shape = (
+            batches,
+            channels,
+            self.image_shape[-2],
+            self.image_shape[-1],
+        )
 
         ones_image = torch.ones(
             (batches, channels, self.projector.detectors, self.projector.detectors),
@@ -112,8 +188,3 @@ class SIRT:
             image += self.relaxation_factor * correction
 
         return image
-
-
-class SART:
-    def __init__(self):
-        pass

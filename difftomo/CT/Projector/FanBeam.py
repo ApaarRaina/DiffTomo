@@ -1,5 +1,5 @@
 import torch
-from ._extensions import (
+from .._extensions import (
     forward_siddon,
     backward_siddon,
     forward_siddon_cpu,
