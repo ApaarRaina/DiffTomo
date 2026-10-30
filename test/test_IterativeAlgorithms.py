@@ -1,6 +1,6 @@
 from difftomo.data import SheppLogan
 from difftomo.CT.Projector import ParallelBeamProjector
-from difftomo.CT.Iterative import TVDenoising, SIRT, TGVDenoising, ART, SART
+from difftomo.CT.Iterative import TVDenoising, SIRT, TGVDenoising, ART, SART, CGLS
 from skimage.metrics import peak_signal_noise_ratio
 import matplotlib.pyplot as plt
 import numpy as np
@@ -155,6 +155,60 @@ def test_SART(device):
         SART_1.reconstruct(sinogram, image_shape=(400, 400)),
         SART_5.reconstruct(sinogram, image_shape=(400, 400)),
         SART_10.reconstruct(sinogram, image_shape=(400, 400)),
+    )
+
+    original_img_np = original_img.cpu().numpy()
+    data_range = np.max(original_img_np) - np.min(original_img_np)
+
+    psnr1 = peak_signal_noise_ratio(
+        original_img_np,
+        backprojected_img.squeeze(0).squeeze(0).cpu().numpy(),
+        data_range=data_range,
+    )
+    psnr2 = peak_signal_noise_ratio(
+        original_img_np,
+        reconstructed_1.squeeze(0).squeeze(0).cpu().numpy(),
+        data_range=data_range,
+    )
+    psnr3 = peak_signal_noise_ratio(
+        original_img_np,
+        reconstructed_5.squeeze(0).squeeze(0).cpu().numpy(),
+        data_range=data_range,
+    )
+    psnr4 = peak_signal_noise_ratio(
+        original_img_np,
+        reconstructed_10.squeeze(0).squeeze(0).cpu().numpy(),
+        data_range=data_range,
+    )
+
+    rmse1, rmse2, rmse3, rmse4 = (
+        rmse(original_img_np, backprojected_img.squeeze(0).squeeze(0).cpu().numpy()),
+        rmse(original_img_np, reconstructed_1.squeeze(0).squeeze(0).cpu().numpy()),
+        rmse(original_img_np, reconstructed_5.squeeze(0).cpu().numpy()),
+        rmse(original_img_np, reconstructed_10.squeeze(0).cpu().numpy()),
+    )
+
+    assert psnr1 < psnr2 < psnr3 < psnr4
+    assert rmse1 > rmse2 > rmse3 > rmse4
+
+
+@pytest.mark.parametrize("device", ["cuda"])
+def test_CGLS(device):
+    phantom = SheppLogan()
+    projector = ParallelBeamProjector(device=device)
+    CGLS_1 = CGLS(projector, iterations=1, device=device)
+    CGLS_5 = CGLS(projector, iterations=5, device=device)
+    CGLS_10 = CGLS(projector, iterations=10, device=device)
+
+    original_img = phantom.data.to(device)
+    sinogram = projector.forward(original_img)
+    sinogram = sinogram.to(device)
+
+    backprojected_img = projector.backward(sinogram, image_shape=(400, 400))
+    reconstructed_1, reconstructed_5, reconstructed_10 = (
+        CGLS_1.reconstruct(sinogram, image_shape=(400, 400)),
+        CGLS_5.reconstruct(sinogram, image_shape=(400, 400)),
+        CGLS_10.reconstruct(sinogram, image_shape=(400, 400)),
     )
 
     original_img_np = original_img.cpu().numpy()

@@ -1,4 +1,4 @@
-from difftomo.CT.Iterative import SIRT, ART, TVDenoising, TGVDenoising, SART
+from difftomo.CT.Iterative import SIRT, ART, TVDenoising, TGVDenoising, SART, CGLS
 import torch
 import matplotlib.pyplot as plt
 from difftomo.data import SheppLogan
@@ -46,6 +46,16 @@ recon_sart_sparse = sart_sparse.reconstruct(
     image_shape=img.shape,
 )
 
+cgls_full = CGLS(projector_full, iterations=iterations, device=device)
+recon_cgls_full = cgls_full.reconstruct(sino_full, image_shape=img.shape)
+
+cgls_sparse = CGLS(projector_sparse, iterations=iterations, device=device)
+recon_cgls_sparse = cgls_sparse.reconstruct(
+    sino_sparse,
+    image_shape=img.shape,
+)
+
+
 # TV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
 tv = TVDenoising(projector_sparse, iterations=20, lamda=0.05, device=device)
 recon_tv_sparse = tv.reconstruct(fbp_sparse)  # (sinogram, initial image) signature
@@ -62,7 +72,7 @@ def to_np(t):
 
 vmin, vmax = img.min().item(), img.max().item()  # shared range for image panels
 
-fig, axes = plt.subplots(2, 6, figsize=(15, 9))
+fig, axes = plt.subplots(2, 7, figsize=(15, 9))
 fig.suptitle("Parallel Beam Geometry", fontsize=16)
 
 # Row 1: full-view (800 projections)
@@ -78,8 +88,11 @@ axes[0, 2].set_title(f"SIRT, full-view ({iterations} it.)")
 axes[0, 3].imshow(to_np(recon_sart_full), cmap="gray")
 axes[0, 3].set_title(f"SART, full-view ({iterations} it.)")
 
-axes[0, 4].imshow(to_np(img), cmap="gray")
-axes[0, 4].set_title("Ground truth")
+axes[0, 4].imshow(to_np(recon_cgls_full), cmap="gray")
+axes[0, 4].set_title(f"CGLS, full-view ({iterations} it.)")
+
+axes[0, 5].imshow(to_np(img), cmap="gray")
+axes[0, 5].set_title("Ground truth")
 
 # Row 2: sparse-view (100 projections)
 axes[1, 0].imshow(to_np(sino_sparse), cmap="gray")
@@ -94,11 +107,14 @@ axes[1, 2].set_title(f"SIRT, sparse-view ({iterations} it.)")
 axes[1, 3].imshow(to_np(recon_sart_sparse), cmap="gray")
 axes[1, 3].set_title(f"SART, sparse-view ({iterations} it.)")
 
-axes[1, 4].imshow(to_np(recon_tv_sparse), cmap="gray")
-axes[1, 4].set_title(f"TV, sparse-view ({20} it.)")
+axes[1, 4].imshow(to_np(recon_cgls_sparse), cmap="gray")
+axes[1, 4].set_title(f"CGLS, sparse-view ({iterations} it.)")
 
-axes[1, 5].imshow(to_np(recon_tgv_sparse), cmap="gray")
-axes[1, 5].set_title(f"TGV, sparse-view ({20} it.)")
+axes[1, 5].imshow(to_np(recon_tv_sparse), cmap="gray")
+axes[1, 5].set_title(f"TV, sparse-view ({20} it.)")
+
+axes[1, 6].imshow(to_np(recon_tgv_sparse), cmap="gray")
+axes[1, 6].set_title(f"TGV, sparse-view ({20} it.)")
 
 for ax in axes.ravel():
     ax.axis("off")
@@ -141,6 +157,15 @@ recon_sart_sparse = sart_sparse.reconstruct(
     image_shape=img.shape,
 )
 
+cgls_full = CGLS(projector_full, iterations=iterations, device=device)
+recon_cgls_full = cgls_full.reconstruct(sino_full, image_shape=img.shape)
+
+cgls_sparse = CGLS(projector_sparse, iterations=iterations, device=device)
+recon_cgls_sparse = cgls_sparse.reconstruct(
+    sino_sparse,
+    image_shape=img.shape,
+)
+
 # TV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
 tv = TVDenoising(projector_sparse, iterations=20, lamda=0.05, device=device)
 recon_tv_sparse = tv.reconstruct(fbp_sparse)  # (sinogram, initial image) signature
@@ -152,7 +177,7 @@ recon_tgv_sparse = tgv.reconstruct(fbp_sparse)  # (sinogram, initial image) sign
 
 vmin, vmax = img.min().item(), img.max().item()  # shared range for image panels
 
-fig, axes = plt.subplots(2, 6, figsize=(15, 9))
+fig, axes = plt.subplots(2, 7, figsize=(15, 9))
 fig.suptitle("Fan Beam Geometry", fontsize=16)
 
 # Row 1: full-view (800 projections)
@@ -168,8 +193,11 @@ axes[0, 2].set_title(f"SIRT, full-view ({iterations} it.)")
 axes[0, 3].imshow(to_np(recon_sart_full), cmap="gray")
 axes[0, 3].set_title(f"SART, full-view ({iterations} it.)")
 
-axes[0, 4].imshow(to_np(img), cmap="gray")
-axes[0, 4].set_title("Ground truth")
+axes[0, 4].imshow(to_np(recon_cgls_full), cmap="gray")
+axes[0, 4].set_title(f"CGLS, full-view ({iterations} it.)")
+
+axes[0, 5].imshow(to_np(img), cmap="gray")
+axes[0, 5].set_title("Ground truth")
 
 # Row 2: sparse-view (100 projections)
 axes[1, 0].imshow(to_np(sino_sparse), cmap="gray")
@@ -184,11 +212,14 @@ axes[1, 2].set_title(f"SIRT, sparse-view ({iterations} it.)")
 axes[1, 3].imshow(to_np(recon_sart_sparse), cmap="gray")
 axes[1, 3].set_title(f"SART, sparse-view ({iterations} it.)")
 
-axes[1, 4].imshow(to_np(recon_tv_sparse), cmap="gray")
-axes[1, 4].set_title(f"TV, sparse-view ({20} it.)")
+axes[1, 4].imshow(to_np(recon_cgls_sparse), cmap="gray")
+axes[1, 4].set_title(f"CGLS, sparse-view ({iterations} it.)")
 
-axes[1, 5].imshow(to_np(recon_tgv_sparse), cmap="gray")
-axes[1, 5].set_title(f"TGV, sparse-view ({20} it.)")
+axes[1, 5].imshow(to_np(recon_tv_sparse), cmap="gray")
+axes[1, 5].set_title(f"TV, sparse-view ({20} it.)")
+
+axes[1, 6].imshow(to_np(recon_tgv_sparse), cmap="gray")
+axes[1, 6].set_title(f"TGV, sparse-view ({20} it.)")
 
 for ax in axes.ravel():
     ax.axis("off")

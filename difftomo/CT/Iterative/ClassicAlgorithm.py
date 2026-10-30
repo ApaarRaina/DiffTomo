@@ -188,3 +188,57 @@ class SIRT:
             image += self.relaxation_factor * correction
 
         return image
+
+
+class CGLS:
+    def __init__(self, projector, iterations=5, device="cpu"):
+        self.projector = projector
+        self.iterations = iterations
+        self.device = device
+
+    def reconstruct(self, sinogram, image_shape=None):
+        if image_shape is not None:
+            self.image_shape = image_shape
+        else:
+            self.image_shape = (1, 1, 512, 512)
+            warnings.warn(
+                "No image shape specified gonna take default shape of 512x512",
+                UserWarning,
+            )
+
+        if len(sinogram.shape) == 4:
+            batches, channels = sinogram.shape[0], sinogram.shape[1]
+        elif len(sinogram.shape) == 3:
+            batches, channels = 1, sinogram.shape[0]
+        elif len(sinogram.shape) == 2:
+            batches, channels = 1, 1
+        else:
+            raise ValueError("Invalid sinogram shape. Expected 2D, 3D, or 4D tensor.")
+
+        self.image_shape = (
+            batches,
+            channels,
+            self.image_shape[-2],
+            self.image_shape[-1],
+        )
+
+        x = torch.zeros(self.image_shape, device=self.device)
+        r = sinogram - self.projector.forward(x)
+        p = self.projector.backward(r)
+
+        for i in range(self.iterations):
+            phi = (torch.sum(torch.square(self.projector.backward(r)))) / (
+                torch.sum(torch.square(self.projector.forward(p)))
+            )
+
+            x = x + phi * p
+            r_k1 = r - phi * self.projector.forward(p)
+            beta = (torch.sum(torch.square(self.projector.backward(r_k1)))) / (
+                torch.sum(torch.square(self.projector.backward(r)))
+            )
+            p_k1 = self.projector.backward(r_k1) + beta * p
+
+            r = r_k1
+            p = p_k1
+
+        return x
