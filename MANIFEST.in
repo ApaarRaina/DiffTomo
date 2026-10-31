@@ -1,0 +1,13 @@
+include README.md
+include LICENSE
+
+recursive-include src/difftomo *.py
+recursive-include src/difftomo *.cpp
+recursive-include src/difftomo *.cu
+recursive-include src/difftomo *.h
+recursive-include src/difftomo *.hpp
+recursive-include src/difftomo *.cuh
+recursive-include src/difftomo *.npy
+
+global-exclude *.py[cod]
+global-exclude __pycache__
