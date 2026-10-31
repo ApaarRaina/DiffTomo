@@ -1,6 +1,6 @@
-from difftomo.data import CarvedCheeseDataset
-from difftomo.data import SheppLogan
-from difftomo.data import WalnutDataset
+from src.difftomo.data import CarvedCheeseDataset
+from src.difftomo.data import SheppLogan
+from src.difftomo.data import WalnutDataset
 import pytest
 
 

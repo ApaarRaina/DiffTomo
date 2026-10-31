@@ -1,6 +1,6 @@
-from difftomo.data import SheppLogan
-from difftomo.CT.Projector import ParallelBeamProjector
-from difftomo.CT.Iterative import TVDenoising, SIRT, TGVDenoising, ART, SART, CGLS
+from src.difftomo.data import SheppLogan
+from src.difftomo.CT.Projector import ParallelBeamProjector
+from src.difftomo.CT.Iterative import TVDenoising, SIRT, TGVDenoising, ART, SART, CGLS
 from skimage.metrics import peak_signal_noise_ratio
 import matplotlib.pyplot as plt
 import numpy as np

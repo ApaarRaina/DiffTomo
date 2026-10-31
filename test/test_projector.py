@@ -1,5 +1,5 @@
-from difftomo.data import SheppLogan
-from difftomo.CT.Projector import ParallelBeamProjector, FanBeamProjector
+from src.difftomo.data import SheppLogan
+from src.difftomo.CT.Projector import ParallelBeamProjector, FanBeamProjector
 from skimage.metrics import peak_signal_noise_ratio
 import numpy as np
 import pytest

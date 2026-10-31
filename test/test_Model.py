@@ -1,4 +1,5 @@
-from difftomo.CT.Models import REDCNN, Reconstructor
+from difftomo.CT.Models import REDCNN
+from src.difftomo.CT.Models import Reconstructor
 import torch
 import pytest
 

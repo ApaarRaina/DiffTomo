@@ -2,6 +2,10 @@
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["difftomo*"]
+
 [project]
 name = "difftomo"
 version = "0.1.0"

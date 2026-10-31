@@ -1,8 +1,8 @@
-from difftomo.CT.Iterative import DRPDenoising
+from src.difftomo.CT.Iterative import DRPDenoising
 import torch
 import matplotlib.pyplot as plt
-from difftomo.data import SheppLogan
-from difftomo.CT.Projector import ParallelBeamProjector, FanBeamProjector
+from src.difftomo.data import SheppLogan
+from src.difftomo.CT.Projector import ParallelBeamProjector, FanBeamProjector
 
 
 def to_np(t):
