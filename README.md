@@ -12,7 +12,7 @@ DiffTomo is designed to cover multiple imaging modalities, including CT, MRI and
   - Parallel-beam: forward projection, backprojection and filtered backprojection (FBP)
   - Fan-beam: forward projection, backprojection and filtered backprojection (FBP)
 - **FBP filters:** `ram-lak`, `shepp-logan`, `cosine`, `hamming`, `hann`
-- **Iterative reconstruction:** SIRT, TV regularization, TGV regularization
+- **Iterative reconstruction:** ART, SART, SIRT, CGLS, TV regularization, TGV regularization, DRP
 - **Data:** Shepp-Logan phantom and sample datasets (carved cheese, walnut)
 - **Pretrained models:** loading support for a small set of models
 
@@ -51,9 +51,8 @@ docs/             # documentation and examples
 test/             # tests
 ```
 
-## Roadmap
+## Next features coming up
 
-- [ ] ART and SART
 - [ ] Helsinki CT dataset and more pretrained models
 - [ ] A learned, transformer attention-based iterative filter that replaces the fixed FBP filter, to study how the filter affects reconstruction quality
 - [ ] MRI reconstruction functions
