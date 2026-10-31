@@ -1,6 +1,6 @@
 import torch
 import warnings
-from src.difftomo.CT._extensions import ARTReconstruction
+from difftomo.CT._extensions import ARTReconstruction
 
 
 class ART:

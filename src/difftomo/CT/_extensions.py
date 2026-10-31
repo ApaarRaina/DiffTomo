@@ -1,37 +1,94 @@
 from pathlib import Path
+import sys
+import torch
 import os
-import importlib.abc
-from torch.utils.cpp_extension import load
+import shutil
+from torch.utils.cpp_extension import load, CUDA_HOME
 
-
-os.environ.setdefault("CC", "/usr/bin/gcc-12")
-os.environ.setdefault("CXX", "/usr/bin/g++-12")
 
 _PROJECTOR_DIR = Path(__file__).parent
 
-difftomo_cuda = load(
-    name="difftomo_cuda",
-    sources=[
-        str("CT" / _PROJECTOR_DIR / "Cpp_files" / "bindings_cuda.cpp"),
-        str("CT" / _PROJECTOR_DIR / "Cuda_files" / "SiddonAlgorithm.cu"),
-    ],
-    verbose=True,
-)
+_CPP_DIR = _PROJECTOR_DIR / "Cpp_files"
+_CUDA_DIR = _PROJECTOR_DIR / "Cuda_files"
 
-difftomo_cpu = load(
-    name="difftomo_cpu",
-    sources=[
-        str("CT" / _PROJECTOR_DIR / "Cpp_files" / "bindings_cpu.cpp"),
-        str("CT" / _PROJECTOR_DIR / "Cpp_files" / "SiddonAlgorithm.cpp"),
-        str("CT" / _PROJECTOR_DIR / "Cpp_files" / "ARTAlgo.cpp"),
-    ],
-    extra_include_paths=[str(_PROJECTOR_DIR)],
-    verbose=True,
-)
+_cpu_extension = None
+_cuda_extension = None
 
-forward_siddon = difftomo_cuda.forward_siddon
-backward_siddon = difftomo_cuda.backward_siddon
+if shutil.which("gcc-12") and shutil.which("g++-12"):
+    os.environ.setdefault("CC", shutil.which("gcc-12"))
+    os.environ.setdefault("CXX", shutil.which("g++-12"))
 
-forward_siddon_cpu = difftomo_cpu.forward_siddon_cpu
-backward_siddon_cpu = difftomo_cpu.backward_siddon_cpu
-ARTReconstruction = difftomo_cpu.ARTRecon
+
+def _load_cpu():
+    global _cpu_extension
+
+    if _cpu_extension is None:
+        _cpu_extension = load(
+            name="difftomo_cpu",
+            sources=[
+                str(_CPP_DIR / "bindings_cpu.cpp"),
+                str(_CPP_DIR / "SiddonAlgorithm.cpp"),
+                str(_CPP_DIR / "ARTAlgo.cpp"),
+            ],
+            extra_include_paths=[str(_PROJECTOR_DIR)],
+            extra_cflags=["-fopenmp"] if sys.platform.startswith("linux") else [],
+            extra_ldflags=["-fopenmp"] if sys.platform.startswith("linux") else [],
+            verbose=True,
+        )
+
+    return _cpu_extension
+
+
+def _load_cuda():
+    global _cuda_extension
+
+    if _cuda_extension is not None:
+        return _cuda_extension
+
+    if CUDA_HOME is None:
+        raise RuntimeError(
+            "DiffTomo CUDA support requires the NVIDIA CUDA Toolkit. "
+            "Install a compatible CUDA development toolkit or use device='cpu'."
+        )
+
+    if not torch.cuda.is_available():
+        raise RuntimeError(
+            "CUDA is not available. Check your NVIDIA driver and PyTorch CUDA "
+            "installation, or use device='cpu'."
+        )
+
+    _cuda_extension = load(
+        name="difftomo_cuda",
+        sources=[
+            str(_CPP_DIR / "bindings_cuda.cpp"),
+            str(_CUDA_DIR / "SiddonAlgorithm.cu"),
+        ],
+        extra_include_paths=[str(_PROJECTOR_DIR)],
+        verbose=True,
+    )
+
+    return _cuda_extension
+
+
+# CUDA functions: compiled only when first called.
+
+def forward_siddon(*args, **kwargs):
+    return _load_cuda().forward_siddon(*args, **kwargs)
+
+
+def backward_siddon(*args, **kwargs):
+    return _load_cuda().backward_siddon(*args, **kwargs)
+
+
+# CPU functions: compiled only when first called.
+
+def forward_siddon_cpu(*args, **kwargs):
+    return _load_cpu().forward_siddon_cpu(*args, **kwargs)
+
+
+def backward_siddon_cpu(*args, **kwargs):
+    return _load_cpu().backward_siddon_cpu(*args, **kwargs)
+
+
+def ARTReconstruction(*args, **kwargs):
+    return _load_cpu().ARTRecon(*args, **kwargs)

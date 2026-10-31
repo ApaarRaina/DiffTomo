@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from src.difftomo.CT.Models import PriorModel
+from difftomo.CT.Models import PriorModel
 from tqdm import tqdm
 
 

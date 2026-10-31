@@ -1,8 +1,8 @@
-from src.difftomo.CT.Iterative import SIRT, ART, TVDenoising, TGVDenoising, SART, CGLS
+from difftomo.CT.Iterative import SIRT, ART, TVDenoising, TGVDenoising, SART, CGLS
 import torch
 import matplotlib.pyplot as plt
-from src.difftomo.data import SheppLogan
-from src.difftomo.CT.Projector import ParallelBeamProjector, FanBeamProjector
+from difftomo.data import SheppLogan
+from difftomo.CT.Projector import ParallelBeamProjector, FanBeamProjector
 import cv2 as cv
 
 

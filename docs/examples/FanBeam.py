@@ -1,5 +1,5 @@
-from src.difftomo.CT.Projector import FanBeamProjector
-from src.difftomo.data import SheppLogan
+from difftomo.CT.Projector import FanBeamProjector
+from difftomo.data import SheppLogan
 import matplotlib.pyplot as plt
 
 img = SheppLogan().data.to("cuda")
