@@ -34,7 +34,7 @@ class TVDenoising:
         grad_y = nn.functional.conv2d(image, sobel_y, padding=1, groups=channels)
 
         return torch.sqrt(grad_x**2 + grad_y**2 + 1e-6)
-
+    
     def reconstruct(self, noisy_img):
         noisy_img = noisy_img.to(self.device)
 
