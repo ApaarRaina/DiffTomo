@@ -57,12 +57,12 @@ recon_cgls_sparse = cgls_sparse.reconstruct(
 
 
 # TV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
-tv = TVDenoising(projector_sparse, iterations=20, lamda=0.05, device=device)
-recon_tv_sparse = tv.reconstruct(fbp_sparse)  # (sinogram, initial image) signature
+tv = TVDenoising(projector_sparse, iterations=100, lamda=1, device=device)
+recon_tv_sparse = tv.reconstruct(sino_sparse, image_shape=img.shape)  # (sinogram, initial image) signature
 
 # TGV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
-tgv = TGVDenoising(projector_sparse, iterations=20, lamda=[1, 2], device=device)
-recon_tgv_sparse = tgv.reconstruct(fbp_sparse)  # (sinogram, initial image) signature
+tgv = TGVDenoising(projector_sparse, iterations=30, lamda=[1, 2], device=device)
+recon_tgv_sparse = tgv.reconstruct(sino_sparse, image_shape=img.shape)  # (sinogram, initial image) signature
 
 
 # ---- plotting ----
@@ -111,10 +111,10 @@ axes[1, 4].imshow(to_np(recon_cgls_sparse), cmap="gray")
 axes[1, 4].set_title(f"CGLS, sparse-view ({iterations} it.)")
 
 axes[1, 5].imshow(to_np(recon_tv_sparse), cmap="gray")
-axes[1, 5].set_title(f"TV, sparse-view ({20} it.)")
+axes[1, 5].set_title(f"TV, sparse-view ({100} it.)")
 
 axes[1, 6].imshow(to_np(recon_tgv_sparse), cmap="gray")
-axes[1, 6].set_title(f"TGV, sparse-view ({20} it.)")
+axes[1, 6].set_title(f"TGV, sparse-view ({30} it.)")
 
 for ax in axes.ravel():
     ax.axis("off")
@@ -167,12 +167,12 @@ recon_cgls_sparse = cgls_sparse.reconstruct(
 )
 
 # TV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
-tv = TVDenoising(projector_sparse, iterations=20, lamda=0.05, device=device)
-recon_tv_sparse = tv.reconstruct(fbp_sparse)  # (sinogram, initial image) signature
+tv = TVDenoising(projector_sparse, iterations=100, lamda=1, device=device)
+recon_tv_sparse = tv.reconstruct(sino_sparse, image_shape=img.shape)  # (sinogram, initial image) signature
 
 # TGV: use the SPARSE projector, since the data term compares A·x to the sparse sinogram
-tgv = TGVDenoising(projector_sparse, iterations=20, lamda=[1, 2], device=device)
-recon_tgv_sparse = tgv.reconstruct(fbp_sparse)  # (sinogram, initial image) signature
+tgv = TGVDenoising(projector_sparse, iterations=30, lamda=[1, 2], device=device)
+recon_tgv_sparse = tgv.reconstruct(sino_sparse, image_shape=img.shape)  # (sinogram, initial image) signature
 
 
 vmin, vmax = img.min().item(), img.max().item()  # shared range for image panels
@@ -216,10 +216,10 @@ axes[1, 4].imshow(to_np(recon_cgls_sparse), cmap="gray")
 axes[1, 4].set_title(f"CGLS, sparse-view ({iterations} it.)")
 
 axes[1, 5].imshow(to_np(recon_tv_sparse), cmap="gray")
-axes[1, 5].set_title(f"TV, sparse-view ({20} it.)")
+axes[1, 5].set_title(f"TV, sparse-view ({100} it.)")
 
 axes[1, 6].imshow(to_np(recon_tgv_sparse), cmap="gray")
-axes[1, 6].set_title(f"TGV, sparse-view ({20} it.)")
+axes[1, 6].set_title(f"TGV, sparse-view ({30} it.)")
 
 for ax in axes.ravel():
     ax.axis("off")
