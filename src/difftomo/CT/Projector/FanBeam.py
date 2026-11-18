@@ -187,6 +187,94 @@ class _FBPFunction(torch.autograd.Function):
             None,  # filter_type
         )
 
+class _BackprojectionFunction(torch.autograd.Function):
+
+    @staticmethod
+    def forward(
+        ctx,
+        sinogram,
+        image_shape,
+        projections,
+        detectors,
+        detector_spacing,
+        coverage,
+        distance,
+        workers=16,
+        device="cuda",
+    ):
+        ctx.device = device
+        ctx.workers = workers
+        ctx.image_shape = image_shape
+        ctx.projections = projections
+        ctx.detectors = detectors
+        ctx.detector_spacing = detector_spacing
+        ctx.coverage = coverage
+        ctx.distance = distance
+
+        if device == "cuda":
+            image = backward_siddon(
+                sinogram,
+                image_shape,
+                projections,
+                detectors,
+                detector_spacing,
+                coverage,
+                distance,
+                "f",
+            )
+        else:
+            image = backward_siddon_cpu(
+                sinogram,
+                image_shape,
+                projections,
+                detectors,
+                detector_spacing,
+                coverage,
+                distance,
+                "f",
+                workers,
+            )
+
+        return image
+
+    @staticmethod
+    def backward(ctx, grad_image):
+
+        if ctx.device == "cuda":
+            grad_sinogram = forward_siddon(
+                grad_image.contiguous(),
+                ctx.projections,
+                ctx.detectors,
+                ctx.detector_spacing,
+                ctx.coverage,
+                ctx.distance,
+                "f",
+            )
+        else:
+            grad_sinogram = forward_siddon_cpu(
+                grad_image.contiguous(),
+                ctx.projections,
+                ctx.detectors,
+                ctx.detector_spacing,
+                ctx.coverage,
+                ctx.distance,
+                "f",
+                ctx.workers,
+            )
+
+        return (
+            grad_sinogram,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+
+
 
 class FanBeamProjector:
     def __init__(
@@ -327,29 +415,17 @@ class FanBeamProjector:
             )
 
         if self.type == "line":
-            if self.device == "cuda":
-                return backward_siddon(
-                    sinogram,
-                    self.image_shape,
-                    self.projections,
-                    self.detectors,
-                    self.detector_spacing,
-                    self.coverage,
-                    self.distance,
-                    self.mode,
-                )
-            else:
-                return backward_siddon_cpu(
-                    sinogram,
-                    self.image_shape,
-                    self.projections,
-                    self.detectors,
-                    self.detector_spacing,
-                    self.coverage,
-                    self.distance,
-                    self.mode,
-                    self.workers,
-                )
+            return _BackprojectionFunction.apply(
+                sinogram,
+                self.image_shape,
+                self.projections,
+                self.detectors,
+                self.detector_spacing,
+                self.coverage,
+                self.distance,
+                self.workers,
+                self.device,
+            )
 
         raise ValueError(f"Unknown projector type: {self.type}")
 
@@ -445,7 +521,7 @@ class FanBeamProjector:
             ) * self.detector_spacing
             sinogram = sinogram * (D / torch.sqrt(D**2 + t**2))[None, None, None, :]
 
-        freqs = torch.fft.fftfreq(pad_len, d=float(self.detector_spacing)).to(
+        freqs = torch.fft.rfftfreq(pad_len, d=float(self.detector_spacing)).to(
             sinogram.device
         )
         filt = torch.abs(freqs)
@@ -463,10 +539,10 @@ class FanBeamProjector:
 
         if self.type == "line":
             sino_padded = torch.nn.functional.pad(sinogram, (0, pad_len - n))
-            F_Rf = torch.fft.fft(sino_padded, dim=3).to(self.device)
+            F_Rf = torch.fft.rfft(sino_padded, dim=3).to(self.device)
             F_Rf_filtered = F_Rf * filt[None, :].to(self.device)
             Rf_filtered = (
-                torch.fft.ifft(F_Rf_filtered, dim=3)
+                torch.fft.irfft(F_Rf_filtered, dim=3)
                 .real[:, :, :, :n]
                 .contiguous()
                 .to(self.device)

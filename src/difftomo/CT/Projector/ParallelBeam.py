@@ -187,6 +187,93 @@ class _FBPFunction(torch.autograd.Function):
             None,  # filter_type
         )
 
+class _BackprojectionFunction(torch.autograd.Function):
+
+    @staticmethod
+    def forward(
+        ctx,
+        sinogram,
+        image_shape,
+        projections,
+        detectors,
+        detector_spacing,
+        coverage,
+        distance,
+        workers=16,
+        device="cuda",
+    ):
+        ctx.device = device
+        ctx.workers = workers
+        ctx.image_shape = image_shape
+        ctx.projections = projections
+        ctx.detectors = detectors
+        ctx.detector_spacing = detector_spacing
+        ctx.coverage = coverage
+        ctx.distance = distance
+
+        if device == "cuda":
+            image = backward_siddon(
+                sinogram,
+                image_shape,
+                projections,
+                detectors,
+                detector_spacing,
+                coverage,
+                distance,
+                "f",
+            )
+        else:
+            image = backward_siddon_cpu(
+                sinogram,
+                image_shape,
+                projections,
+                detectors,
+                detector_spacing,
+                coverage,
+                distance,
+                "f",
+                workers,
+            )
+
+        return image
+
+    @staticmethod
+    def backward(ctx, grad_image):
+
+        if ctx.device == "cuda":
+            grad_sinogram = forward_siddon(
+                grad_image.contiguous(),
+                ctx.projections,
+                ctx.detectors,
+                ctx.detector_spacing,
+                ctx.coverage,
+                ctx.distance,
+                "f",
+            )
+        else:
+            grad_sinogram = forward_siddon_cpu(
+                grad_image.contiguous(),
+                ctx.projections,
+                ctx.detectors,
+                ctx.detector_spacing,
+                ctx.coverage,
+                ctx.distance,
+                "f",
+                ctx.workers,
+            )
+
+        return (
+            grad_sinogram,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+
 
 class ParallelBeamProjector:
     def __init__(
@@ -325,30 +412,17 @@ class ParallelBeamProjector:
             )
 
         if self.type == "line":
-            if self.device == "cuda":
-                return backward_siddon(
-                    sinogram,
-                    self.image_shape,
-                    self.projections,
-                    self.detectors,
-                    self.detector_spacing,
-                    self.coverage,
-                    self.distance,
-                    self.mode,
-                )
-            else:
-                return backward_siddon_cpu(
-                    sinogram,
-                    self.image_shape,
-                    self.projections,
-                    self.detectors,
-                    self.detector_spacing,
-                    self.coverage,
-                    self.distance,
-                    self.mode,
-                    self.workers,
-                )
-
+            return _BackprojectionFunction.apply(
+                sinogram,
+                self.image_shape,
+                self.projections,
+                self.detectors,
+                self.detector_spacing,
+                self.coverage,
+                self.distance,
+                self.workers,
+                self.device,
+            )
         raise ValueError(f"Unknown projector type: {self.type}")
 
     def _sinc(self, x):
